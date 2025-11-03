@@ -23,6 +23,7 @@ describe('parseCli', () => {
       connectPort: undefined,
       checkByGoogle: false,
       openProductPageOnly: false,
+      openRootPage: false,
     });
   });
 
@@ -44,6 +45,7 @@ describe('parseCli', () => {
       PARSER_CONNECT_ENDPOINT: 'ws://127.0.0.1:9222/devtools/browser/abc',
       PARSER_CHECK_GOOGLE: 'true',
       PARSER_OPEN_PRODUCT_ONLY: 'true',
+      PARSER_OPEN_ROOT_PAGE: 'true',
     } satisfies NodeJS.ProcessEnv;
 
     const { options } = parseCli(
@@ -64,6 +66,7 @@ describe('parseCli', () => {
       connectPort: undefined,
       checkByGoogle: true,
       openProductPageOnly: true,
+      openRootPage: true,
     });
   });
 
@@ -106,6 +109,11 @@ describe('parseCli', () => {
     expect(options.openProductPageOnly).toBe(true);
   });
 
+  it('enables open root page via flag', () => {
+    const { options } = parseCli(['--open-root-page'], {} as NodeJS.ProcessEnv);
+    expect(options.openRootPage).toBe(true);
+  });
+
   it('recovers stripped flags from npm_config_argv', () => {
     const env = {
       npm_config_argv: JSON.stringify({
@@ -116,6 +124,7 @@ describe('parseCli', () => {
           '--connect-port',
           '9333',
           '--open-product-page-only',
+          '--open-root-page',
         ],
       }),
     } satisfies NodeJS.ProcessEnv;
@@ -126,6 +135,7 @@ describe('parseCli', () => {
     expect(options.connectPort).toBe(9333);
     expect(options.connectEndpoint).toBeUndefined();
     expect(options.openProductPageOnly).toBe(true);
+    expect(options.openRootPage).toBe(true);
   });
 
   it('recovers endpoint from npm_config_argv with equals syntax', () => {
@@ -135,6 +145,7 @@ describe('parseCli', () => {
           'nest',
           'start',
           '--connect-endpoint=ws://127.0.0.1:9222/devtools/browser/xyz',
+          '--open-root-page',
         ],
       }),
     } satisfies NodeJS.ProcessEnv;
@@ -144,6 +155,7 @@ describe('parseCli', () => {
       'ws://127.0.0.1:9222/devtools/browser/xyz',
     );
     expect(options.connectPort).toBeUndefined();
+    expect(options.openRootPage).toBe(true);
   });
 
   it('respects --auto-close flag', () => {

@@ -44,6 +44,7 @@ export interface ParserOptions {
   connectPort?: number;
   checkByGoogle?: boolean;
   openProductPageOnly?: boolean;
+  openRootPage?: boolean;
 }
 
 export interface RunOptions extends ParserOptions {
@@ -85,8 +86,30 @@ export class OzonParserService {
       return info;
     }
 
+    if (options.openRootPage) {
+      const info = await this.openRootPage(options);
+
+      if (options.output === 'json') {
+        console.log(
+          JSON.stringify(
+            {
+              success: true,
+              title: info.title,
+              url: info.url,
+            },
+            null,
+            2,
+          ),
+        );
+      } else {
+        console.log(`✅ Opened site root (${info.title})`);
+      }
+
+      return info;
+    }
+
     if (options.openProductPageOnly) {
-      const info = await this.openProductPage(options);
+      const info = await this.openSimplePage(options.url, options);
       if (options.output === 'json') {
         console.log(
           JSON.stringify(
@@ -338,6 +361,101 @@ export class OzonParserService {
     }
   }
 
+  private async openSimplePage(
+    targetUrl: string,
+    options: ParserOptions,
+  ): Promise<ProductInfo> {
+    const { browser, ownsBrowser } = await this.acquireBrowser(options);
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+      const page = await browser.newPage();
+
+      if (options.proxyUsername || options.proxyPassword) {
+        await page.authenticate({
+          username: options.proxyUsername ?? '',
+          password: options.proxyPassword ?? '',
+        });
+      }
+
+      const timeout = options.timeoutMs ?? 60_000;
+      page.setDefaultNavigationTimeout(timeout);
+      page.setDefaultTimeout(timeout);
+
+      await page.goto('about:blank');
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+
+      await page.evaluate((url) => {
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.target = '_blank';
+        anchor.rel = 'noopener noreferrer';
+        anchor.style.display = 'none';
+        document.body.appendChild(anchor);
+        anchor.click();
+      }, targetUrl);
+
+      try {
+        await page.waitForNavigation({
+          waitUntil: 'domcontentloaded',
+          timeout,
+        });
+      } catch (error) {
+        this.logger.warn(
+          `Timed out waiting for page to load via anchor (${targetUrl}): ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+
+      const title = await page.title();
+
+      return {
+        title: title || targetUrl,
+        url: targetUrl,
+        sku: null,
+        brand: null,
+        description: null,
+        price: {
+          value: null,
+          currency: null,
+          displayText: null,
+          availability: null,
+        },
+        rating: null,
+        seller: null,
+        breadcrumbs: [],
+        images: [],
+        rawPriceText: null,
+      } satisfies ProductInfo;
+    } finally {
+      if (
+        ownsBrowser &&
+        options.keepBrowserOpen &&
+        options.headless === false
+      ) {
+        await this.waitForHeadfulBrowser(browser);
+      }
+
+      if (ownsBrowser) {
+        if (browser.connected) {
+          await browser.close();
+        }
+      } else if (browser.connected) {
+        void browser.disconnect();
+      }
+    }
+  }
+
+  private async openProductPage(options: ParserOptions): Promise<ProductInfo> {
+    return this.openSimplePage(options.url, options);
+  }
+
+  private async openRootPage(options: ParserOptions): Promise<ProductInfo> {
+    const origin = new URL(options.url).origin;
+    return this.openSimplePage(origin, options);
+  }
+
   private async performGoogleCheck(
     options: ParserOptions,
   ): Promise<ProductInfo> {
@@ -382,131 +500,6 @@ export class OzonParserService {
       return {
         title,
         url: targetUrl,
-        sku: null,
-        brand: null,
-        description: null,
-        price: {
-          value: null,
-          currency: null,
-          displayText: null,
-          availability: null,
-        },
-        rating: null,
-        seller: null,
-        breadcrumbs: [],
-        images: [],
-        rawPriceText: null,
-      } satisfies ProductInfo;
-    } finally {
-      if (
-        ownsBrowser &&
-        options.keepBrowserOpen &&
-        options.headless === false
-      ) {
-        await this.waitForHeadfulBrowser(browser);
-      }
-
-      if (ownsBrowser) {
-        if (browser.connected) {
-          await browser.close();
-        }
-      } else if (browser.connected) {
-        void browser.disconnect();
-      }
-    }
-  }
-
-  private async openProductPage(options: ParserOptions): Promise<ProductInfo> {
-    const { browser, ownsBrowser } = await this.acquireBrowser(options);
-
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1_000));
-      const page = await browser.newPage();
-
-      // await page.setExtraHTTPHeaders({
-      //   'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
-      // });
-
-      // if (options.proxyUsername || options.proxyPassword) {
-      //   await page.authenticate({
-      //     username: options.proxyUsername ?? '',
-      //     password: options.proxyPassword ?? '',
-      //   });
-      // }
-
-      // const timeout = options.timeoutMs ?? 60_000;
-      // page.setDefaultNavigationTimeout(timeout);
-      // page.setDefaultTimeout(timeout);
-
-      await new Promise((resolve) => setTimeout(resolve, 1_000));
-      // await page.setExtraHTTPHeaders({
-      //   'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
-      // });
-
-      // if (options.proxyUsername || options.proxyPassword) {
-      //   await page.authenticate({
-      //     username: options.proxyUsername ?? '',
-      //     password: options.proxyPassword ?? '',
-      //   });
-      // }
-
-      // const timeout = options.timeoutMs ?? 60_000;
-      // page.setDefaultNavigationTimeout(timeout);
-      // page.setDefaultTimeout(timeout);
-
-      const client = await page.createCDPSession();
-      try {
-        await client.send('Page.enable');
-        await new Promise((resolve) => setTimeout(resolve, 1_000));
-        await client.send('Page.navigate', { url: 'about:blank' });
-        await page.waitForNavigation({
-          waitUntil: 'domcontentloaded',
-          // timeout,
-        });
-        await new Promise((resolve) => setTimeout(resolve, 1_000));
-        // await page.evaluate((url) => {
-        //   const a = document.createElement('a');
-        //   a.href = url;
-        //   a.target = '_self'; // same tab navigation
-        //   a.textContent = 'x';
-        //   a.style.display = 'none';
-        //   document.body.appendChild(a);
-        //   a.click(); // navigation will happen
-        // }, options.url); // doesn't work
-
-        await page.evaluate((url) => {
-          const a = document.createElement('a');
-          a.href = url;
-          a.target = '_blank';
-          a.rel = 'noopener noreferrer';
-          a.style.display = 'none';
-          document.body.appendChild(a);
-          a.click();
-        // }, options.url); // works https://www.ozon.ru/?__rr=1
-        }, 'https://www.ozon.ru/'); // works
-        // await client.send('Page.navigate', { url: options.url });
-      } finally {
-        await client.detach().catch(() => undefined);
-      }
-
-      try {
-        await page.waitForNavigation({
-          waitUntil: 'domcontentloaded',
-          // timeout,
-        });
-      } catch (error) {
-        this.logger.warn(
-          `Timed out waiting for product page to load: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      }
-
-      const title = await page.title();
-
-      return {
-        title: title || options.url,
-        url: options.url,
         sku: null,
         brand: null,
         description: null,

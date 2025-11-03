@@ -17,6 +17,7 @@ export interface CliOptions {
   connectPort?: number;
   checkByGoogle: boolean;
   openProductPageOnly: boolean;
+  openRootPage: boolean;
 }
 
 export interface CliParseResult {
@@ -42,6 +43,7 @@ Options:
   --connect-port <port>    Resolve WebSocket endpoint from http://127.0.0.1:<port>/json/version
   --check-google           Skip product parsing and open Google to verify connectivity
   --open-product-page-only  Open the product page but skip parsing/printing results
+  --open-root-page         Open the site root (derived from product URL) without parsing
   -v, --verbose          Print stack traces on error
   -h, --help             Show this help message
 
@@ -57,6 +59,7 @@ Environment variables:
   PARSER_CONNECT_PORT      Browser remote debugging port
   PARSER_CHECK_GOOGLE      Set to 'true' to open Google instead of parsing a product
   PARSER_OPEN_PRODUCT_ONLY  Set to 'true' to open the product page without parsing
+  PARSER_OPEN_ROOT_PAGE     Set to 'true' to open the site root without parsing
 `;
 
 export function formatHelpMessage(): string {
@@ -104,6 +107,9 @@ export function parseCli(
     openProductPageOnly:
       (env.PARSER_OPEN_PRODUCT_ONLY ?? '').toLowerCase() === 'true' ||
       env.PARSER_OPEN_PRODUCT_ONLY === '1',
+    openRootPage:
+      (env.PARSER_OPEN_ROOT_PAGE ?? '').toLowerCase() === 'true' ||
+      env.PARSER_OPEN_ROOT_PAGE === '1',
   };
 
   let helpRequested = false;
@@ -205,6 +211,9 @@ export function parseCli(
       case '--open-product-page-only':
         options.openProductPageOnly = true;
         break;
+      case '--open-root-page':
+        options.openRootPage = true;
+        break;
       default:
         if (arg.startsWith('-')) {
           throw new Error(`Unknown argument: ${arg}`);
@@ -256,6 +265,10 @@ export function parseCli(
         original.includes('--open-product-page-only')
       ) {
         options.openProductPageOnly = true;
+      }
+
+      if (!options.openRootPage && original.includes('--open-root-page')) {
+        options.openRootPage = true;
       }
 
       if (
@@ -382,6 +395,56 @@ export function parseCli(
               if (value) {
                 options.url = value;
               }
+            }
+            break;
+          case entry === '--check-google':
+          case entry.startsWith('--check-google='):
+            if (!options.checkByGoogle) {
+              options.checkByGoogle = true;
+            }
+            break;
+          case entry === '--open-product-page-only':
+          case entry.startsWith('--open-product-page-only='):
+            if (!options.openProductPageOnly) {
+              options.openProductPageOnly = true;
+            }
+            break;
+          case entry === '--open-root-page':
+          case entry.startsWith('--open-root-page='):
+            if (!options.openRootPage) {
+              options.openRootPage = true;
+            }
+            break;
+          case entry === '--verbose':
+          case entry.startsWith('--verbose='):
+            if (!options.verbose) {
+              options.verbose = true;
+            }
+            break;
+          case entry === '--no-headless':
+          case entry.startsWith('--no-headless='):
+            if (!argv.includes('--no-headless')) {
+              options.headless = false;
+              options.keepBrowserOpen = true;
+            }
+            break;
+          case entry === '--headless':
+          case entry.startsWith('--headless='):
+            if (!argv.includes('--headless')) {
+              options.headless = true;
+              options.keepBrowserOpen = false;
+            }
+            break;
+          case entry === '--auto-close':
+          case entry.startsWith('--auto-close='):
+            if (!argv.includes('--auto-close')) {
+              options.keepBrowserOpen = false;
+            }
+            break;
+          case entry === '--keep-browser-open':
+          case entry.startsWith('--keep-browser-open='):
+            if (!argv.includes('--keep-browser-open')) {
+              options.keepBrowserOpen = true;
             }
             break;
         }

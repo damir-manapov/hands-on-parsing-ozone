@@ -48,6 +48,7 @@ async function bootstrap() {
     connectPort: cli.connectPort ?? null,
     checkByGoogle: cli.checkByGoogle,
     openProductPageOnly: cli.openProductPageOnly,
+    openRootPage: cli.openRootPage,
   };
 
   console.log('Parsed CLI options:', JSON.stringify(displayedOptions, null, 2));
@@ -67,6 +68,7 @@ async function bootstrap() {
       connectPort: cli.connectPort,
       checkByGoogle: cli.checkByGoogle,
       openProductPageOnly: cli.openProductPageOnly,
+      openRootPage: cli.openRootPage,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

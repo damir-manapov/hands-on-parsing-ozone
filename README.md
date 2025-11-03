@@ -43,6 +43,8 @@ yarn start -- --timeout 90000 --no-headless
 - `--connect-endpoint <ws>` – attach to an already running Chromium instance via WebSocket endpoint
 - `--connect-port <port>` – resolve the WebSocket endpoint from `http://127.0.0.1:<port>/json/version`
 - `--check-google` – skip product parsing and simply open Google to verify browser connectivity
+- `--open-product-page-only` – open the product page but skip parsing/printing results
+- `--open-root-page` – open the site root (derived from the product URL) without parsing
 - `-v, --verbose` – include stack traces on errors
 - `-h, --help` – show usage help
 
@@ -57,6 +59,8 @@ When the browser is kept open, the CLI waits until you press Enter (or close the
 - `PARSER_PROXY` (or `HTTPS_PROXY`/`HTTP_PROXY`) – proxy URL used by default
 - `PARSER_PROXY_USERNAME` / `PARSER_PROXY_PASSWORD` – proxy credentials
 - `PARSER_CHECK_GOOGLE` – set to `true` to run the Google connectivity check by default
+- `PARSER_OPEN_PRODUCT_ONLY` – set to `true` to open the product page without parsing
+- `PARSER_OPEN_ROOT_PAGE` – set to `true` to open the site root without parsing
 - `PARSER_CONNECT_ENDPOINT` – remote browser WebSocket endpoint
 - `PARSER_CONNECT_PORT` – remote debugging port (used to fetch the endpoint)
 
@@ -94,6 +98,14 @@ yarn list:profiles [--token <apiToken>]
 ```
 
 Each folder (id and name) and its profiles (id and name) will be printed. Defaults can be supplied via `ANTIDETECT_SERVER` and `ANTIDETECT_TOKEN`; omit `--token` if your service doesn’t require authentication. If you omit `--server`, the script targets `https://v1.empr.cloud` by default.
+
+Need a lightweight connectivity check before parsing? Use:
+
+```bash
+yarn start -- --open-root-page --connect-port <port>
+```
+
+This launches the antidetect profile, opens the marketplace root URL, and then exits without touching the product page.
 
 To inspect profiles that are already running:
 
