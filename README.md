@@ -83,6 +83,25 @@ yarn start -- --connect-port 9222
 
 Set `PARSER_CONNECT_ENDPOINT` or `PARSER_CONNECT_PORT` when you want these defaults applied automatically. The helper script also honours `ANTIDETECT_*` environment variables for server, token, folder, profile, and port.
 
+### Listing available profiles
+
+To audit what profiles exist on the antidetect service:
+
+```bash
+yarn list:profiles --token <apiToken>
+```
+
+Each folder (id and name) and its profiles (id and name) will be printed. Defaults can be supplied via `ANTIDETECT_SERVER` and `ANTIDETECT_TOKEN`.
+If you omit `--server`, the script targets `http://127.0.0.1:3030` (same as the launch helper).
+
+To inspect profiles that are already running:
+
+```bash
+yarn list:running --token <apiToken>
+```
+
+This prints the profile id, optional name, folder id, and websocket endpoint when available.
+
 ## Handling antibot protection
 
 If the CLI reports an antibot challenge:

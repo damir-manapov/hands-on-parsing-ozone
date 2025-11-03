@@ -18,7 +18,9 @@
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
-    "launch:profile": "tsx src/launch-antidetect.ts"
+    "launch:profile": "tsx src/launch-antidetect.ts",
+    "list:profiles": "tsx src/list-profiles.ts",
+    "list:running": "tsx src/list-running.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
