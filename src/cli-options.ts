@@ -13,6 +13,8 @@ export interface CliOptions {
   proxy?: string;
   proxyUsername?: string;
   proxyPassword?: string;
+  connectEndpoint?: string;
+  connectPort?: number;
 }
 
 export interface CliParseResult {
@@ -34,6 +36,8 @@ Options:
   --proxy <url>          Forward traffic through an HTTP/HTTPS/SOCKS proxy
   --proxy-username <v>   Username for proxy authentication
   --proxy-password <v>   Password for proxy authentication
+  --connect-endpoint <ws>  Connect to an existing browser via WebSocket endpoint
+  --connect-port <port>    Resolve WebSocket endpoint from http://127.0.0.1:<port>/json/version
   -v, --verbose          Print stack traces on error
   -h, --help             Show this help message
 
@@ -45,6 +49,8 @@ Environment variables:
   PARSER_PROXY           Proxy URL (fallback to HTTPS_PROXY / HTTP_PROXY)
   PARSER_PROXY_USERNAME  Proxy basic auth username
   PARSER_PROXY_PASSWORD  Proxy basic auth password
+  PARSER_CONNECT_ENDPOINT  Browser WebSocket endpoint
+  PARSER_CONNECT_PORT      Browser remote debugging port
 `;
 
 export function formatHelpMessage(): string {
@@ -84,6 +90,8 @@ export function parseCli(
     proxy: env.PARSER_PROXY ?? env.HTTPS_PROXY ?? env.HTTP_PROXY,
     proxyUsername: env.PARSER_PROXY_USERNAME,
     proxyPassword: env.PARSER_PROXY_PASSWORD,
+    connectEndpoint: env.PARSER_CONNECT_ENDPOINT,
+    connectPort: parseNumber(env.PARSER_CONNECT_PORT),
   };
 
   let helpRequested = false;
@@ -124,6 +132,22 @@ export function parseCli(
           throw new Error(`Invalid timeout value: ${value}`);
         }
         options.timeoutMs = parsed;
+        index += 1;
+        break;
+      }
+      case '--connect-endpoint': {
+        const value = ensureValue(index + 1, arg);
+        options.connectEndpoint = value;
+        index += 1;
+        break;
+      }
+      case '--connect-port': {
+        const value = ensureValue(index + 1, arg);
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed)) {
+          throw new Error(`Invalid port value: ${value}`);
+        }
+        options.connectPort = parsed;
         index += 1;
         break;
       }
@@ -184,6 +208,12 @@ export function parseCli(
   if (!options.url) {
     throw new Error(
       'Missing product URL. Provide it via --url or PARSER_PRODUCT_URL',
+    );
+  }
+
+  if (options.connectEndpoint && options.connectPort !== undefined) {
+    throw new Error(
+      'Provide either --connect-endpoint or --connect-port, not both.',
     );
   }
 

@@ -19,6 +19,8 @@ describe('parseCli', () => {
       proxy: undefined,
       proxyUsername: undefined,
       proxyPassword: undefined,
+      connectEndpoint: undefined,
+      connectPort: undefined,
     });
   });
 
@@ -37,6 +39,7 @@ describe('parseCli', () => {
       PARSER_PROXY: 'socks5://127.0.0.1:9050',
       PARSER_PROXY_USERNAME: 'alice',
       PARSER_PROXY_PASSWORD: 'secret',
+      PARSER_CONNECT_ENDPOINT: 'ws://127.0.0.1:9222/devtools/browser/abc',
     } satisfies NodeJS.ProcessEnv;
 
     const { options } = parseCli(
@@ -53,6 +56,8 @@ describe('parseCli', () => {
       proxy: 'socks5://127.0.0.1:9050',
       proxyUsername: 'alice',
       proxyPassword: 'secret',
+      connectEndpoint: 'ws://127.0.0.1:9222/devtools/browser/abc',
+      connectPort: undefined,
     });
   });
 
@@ -69,6 +74,8 @@ describe('parseCli', () => {
         'bob',
         '--proxy-password',
         'hunter2',
+        '--connect-port',
+        '9333',
       ],
       env,
     );
@@ -76,6 +83,8 @@ describe('parseCli', () => {
     expect(options.proxy).toBe('http://primary-proxy:8080');
     expect(options.proxyUsername).toBe('bob');
     expect(options.proxyPassword).toBe('hunter2');
+    expect(options.connectPort).toBe(9333);
+    expect(options.connectEndpoint).toBeUndefined();
   });
 
   it('respects --auto-close flag', () => {
@@ -86,6 +95,15 @@ describe('parseCli', () => {
 
     expect(options.headless).toBe(false);
     expect(options.keepBrowserOpen).toBe(false);
+  });
+
+  it('throws when both connect endpoint and port provided', () => {
+    expect(() =>
+      parseCli(
+        ['--connect-endpoint', 'ws://foo', '--connect-port', '9333'],
+        {} as NodeJS.ProcessEnv,
+      ),
+    ).toThrow(/either --connect-endpoint or --connect-port/i);
   });
 
   it('throws on unknown flags', () => {

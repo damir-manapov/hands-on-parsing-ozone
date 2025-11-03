@@ -40,6 +40,8 @@ yarn start -- --timeout 90000 --no-headless
 - `--keep-browser-open` – force the browser to stay open until you press Enter
 - `--proxy <url>` – route traffic through `http`, `https`, or `socks5` proxy
 - `--proxy-username` / `--proxy-password` – provide proxy basic auth credentials
+- `--connect-endpoint <ws>` – attach to an already running Chromium instance via WebSocket endpoint
+- `--connect-port <port>` – resolve the WebSocket endpoint from `http://127.0.0.1:<port>/json/version`
 - `-v, --verbose` – include stack traces on errors
 - `-h, --help` – show usage help
 
@@ -53,6 +55,8 @@ When the browser is kept open, the CLI waits until you press Enter (or close the
 - `PARSER_TIMEOUT` – default timeout in milliseconds
 - `PARSER_PROXY` (or `HTTPS_PROXY`/`HTTP_PROXY`) – proxy URL used by default
 - `PARSER_PROXY_USERNAME` / `PARSER_PROXY_PASSWORD` – proxy credentials
+- `PARSER_CONNECT_ENDPOINT` – remote browser WebSocket endpoint
+- `PARSER_CONNECT_PORT` – remote debugging port (used to fetch the endpoint)
 
 ### Proxy usage example
 
@@ -61,6 +65,23 @@ yarn start -- --proxy "socks5://proxy-host:9050" --proxy-username mylogin --prox
 ```
 
 You can also set the corresponding `PARSER_PROXY*` environment variables to avoid passing secrets via CLI flags.
+
+### Connecting to an existing Chromium instance
+
+Many antidetect browsers expose the Chrome DevTools protocol. Start your profile with a debugging port, then either supply the raw WebSocket endpoint or the port itself:
+
+```bash
+# Launch profile via the bundled helper (requires API token)
+yarn launch:profile --folder <folderId> --profile <profileId> --token <apiToken> --port 9222
+
+# If you know the full ws:// URL
+yarn start -- --connect-endpoint "ws://127.0.0.1:9222/devtools/browser/XXXX"
+
+# If you only have the port (CLI will fetch /json/version automatically)
+yarn start -- --connect-port 9222
+```
+
+Set `PARSER_CONNECT_ENDPOINT` or `PARSER_CONNECT_PORT` when you want these defaults applied automatically. The helper script also honours `ANTIDETECT_*` environment variables for server, token, folder, profile, and port.
 
 ## Handling antibot protection
 

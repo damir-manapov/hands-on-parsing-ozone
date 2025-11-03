@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { request as httpRequest } from 'node:http';
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import type { Browser } from 'puppeteer';
@@ -39,6 +40,8 @@ export interface ParserOptions {
   proxy?: string;
   proxyUsername?: string;
   proxyPassword?: string;
+  connectEndpoint?: string;
+  connectPort?: number;
 }
 
 export interface RunOptions extends ParserOptions {
@@ -71,15 +74,7 @@ export class OzonParserService {
   }
 
   async parseProduct(options: ParserOptions): Promise<ProductInfo> {
-    const launchArgs = ['--no-sandbox', '--disable-setuid-sandbox'];
-    if (options.proxy) {
-      launchArgs.push(`--proxy-server=${options.proxy}`);
-    }
-
-    const browser = await puppeteer.launch({
-      headless: options.headless === false ? false : true,
-      args: launchArgs,
-    });
+    const { browser, ownsBrowser } = await this.acquireBrowser(options);
 
     try {
       const page = await browser.newPage();
@@ -253,12 +248,20 @@ export class OzonParserService {
         url: options.url,
       });
     } finally {
-      if (options.keepBrowserOpen && options.headless === false) {
+      if (
+        ownsBrowser &&
+        options.keepBrowserOpen &&
+        options.headless === false
+      ) {
         await this.waitForHeadfulBrowser(browser);
       }
 
-      if (browser.connected) {
-        await browser.close();
+      if (ownsBrowser) {
+        if (browser.connected) {
+          await browser.close();
+        }
+      } else if (browser.connected) {
+        void browser.disconnect();
       }
     }
   }
@@ -306,6 +309,114 @@ export class OzonParserService {
         }, 120_000);
         fallbackTimer.unref?.();
       }
+    });
+  }
+
+  private async acquireBrowser({
+    headless,
+    proxy,
+    connectEndpoint,
+    connectPort,
+  }: ParserOptions): Promise<{ browser: Browser; ownsBrowser: boolean }> {
+    if (connectEndpoint || connectPort !== undefined) {
+      const endpoint =
+        connectEndpoint ?? (await this.resolveEndpointFromPort(connectPort!));
+
+      if (!endpoint) {
+        throw new Error(
+          `Unable to resolve WebSocket endpoint from port ${connectPort}. Ensure the browser exposes /json/version.`,
+        );
+      }
+
+      this.logger.log(`Connecting to existing browser at ${endpoint}`);
+      const browser = await puppeteer.connect({ browserWSEndpoint: endpoint });
+      return { browser, ownsBrowser: false };
+    }
+
+    const launchArgs = ['--no-sandbox', '--disable-setuid-sandbox'];
+    if (proxy) {
+      launchArgs.push(`--proxy-server=${proxy}`);
+    }
+
+    const browser = await puppeteer.launch({
+      headless: headless === false ? false : true,
+      args: launchArgs,
+    });
+
+    return { browser, ownsBrowser: true };
+  }
+
+  private async resolveEndpointFromPort(port: number): Promise<string | null> {
+    return new Promise<string>((resolve, reject) => {
+      const req = httpRequest(
+        {
+          host: '127.0.0.1',
+          port,
+          path: '/json/version',
+          method: 'GET',
+          timeout: 5_000,
+        },
+        (res) => {
+          if (res.statusCode && res.statusCode >= 400) {
+            res.resume();
+            reject(
+              new Error(
+                `Received status ${res.statusCode} when fetching /json/version from port ${port}.`,
+              ),
+            );
+            return;
+          }
+
+          let raw = '';
+          res.setEncoding('utf8');
+          res.on('data', (chunk) => {
+            raw += chunk;
+          });
+          res.on('end', () => {
+            try {
+              const parsed = JSON.parse(raw) as {
+                webSocketDebuggerUrl?: unknown;
+              };
+              const endpoint = parsed.webSocketDebuggerUrl;
+              if (typeof endpoint !== 'string' || endpoint.length === 0) {
+                reject(
+                  new Error(
+                    `Missing webSocketDebuggerUrl in response from port ${port}.`,
+                  ),
+                );
+                return;
+              }
+
+              resolve(endpoint);
+            } catch (error) {
+              reject(
+                new Error(
+                  `Failed to parse /json/version response from port ${port}: ${error instanceof Error ? error.message : String(error)}`,
+                ),
+              );
+            }
+          });
+        },
+      );
+
+      req.on('error', (error) => {
+        reject(
+          new Error(
+            `Unable to reach browser on port ${port}: ${error instanceof Error ? error.message : String(error)}`,
+          ),
+        );
+      });
+
+      req.on('timeout', () => {
+        req.destroy(
+          new Error(`Timed out fetching /json/version from port ${port}`),
+        );
+      });
+
+      req.end();
+    }).catch((error) => {
+      this.logger.error(error instanceof Error ? error.message : String(error));
+      return null;
     });
   }
 
