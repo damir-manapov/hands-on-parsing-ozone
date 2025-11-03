@@ -92,6 +92,8 @@ export function parseCli(
     env.PARSER_SCENARIO ?? 'parseProduct',
   );
 
+  const args = argv.filter((arg) => arg !== '--');
+
   const options: CliOptions = {
     url: env.PARSER_PRODUCT_URL ?? DEFAULT_PRODUCT_URL,
     output: env.PARSER_OUTPUT === 'json' ? 'json' : 'text',
@@ -110,15 +112,15 @@ export function parseCli(
   let helpRequested = false;
 
   const ensureValue = (index: number, flag: string): string => {
-    const value = argv[index];
+    const value = args[index];
     if (!value || value.startsWith('-')) {
       throw new Error(`Expected value after ${flag}`);
     }
     return value;
   };
 
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
 
     switch (arg) {
       case '--help':
@@ -327,6 +329,7 @@ export function parseCli(
           case entry === '--connect-port':
           case entry.startsWith('--connect-port='):
             if (
+              !args.includes('--connect-port') &&
               options.connectPort === undefined &&
               options.connectEndpoint === undefined
             ) {
@@ -341,7 +344,10 @@ export function parseCli(
             break;
           case entry === '--connect-endpoint':
           case entry.startsWith('--connect-endpoint='):
-            if (!options.connectEndpoint) {
+            if (
+              !args.includes('--connect-endpoint') &&
+              !options.connectEndpoint
+            ) {
               const value = getValue('--connect-endpoint', index);
               if (value) {
                 options.connectEndpoint = value;
@@ -351,7 +357,7 @@ export function parseCli(
             break;
           case entry === '--proxy':
           case entry.startsWith('--proxy='):
-            if (!argv.includes('--proxy') && !options.proxy) {
+            if (!args.includes('--proxy') && !options.proxy) {
               const value = getValue('--proxy', index);
               if (value) {
                 options.proxy = value;
@@ -360,7 +366,7 @@ export function parseCli(
             break;
           case entry === '--proxy-username':
           case entry.startsWith('--proxy-username='):
-            if (!argv.includes('--proxy-username') && !options.proxyUsername) {
+            if (!args.includes('--proxy-username') && !options.proxyUsername) {
               const value = getValue('--proxy-username', index);
               if (value) {
                 options.proxyUsername = value;
@@ -369,7 +375,7 @@ export function parseCli(
             break;
           case entry === '--proxy-password':
           case entry.startsWith('--proxy-password='):
-            if (!argv.includes('--proxy-password') && !options.proxyPassword) {
+            if (!args.includes('--proxy-password') && !options.proxyPassword) {
               const value = getValue('--proxy-password', index);
               if (value) {
                 options.proxyPassword = value;
@@ -378,7 +384,10 @@ export function parseCli(
             break;
           case entry === '--timeout':
           case entry.startsWith('--timeout='):
-            if (options.timeoutMs === undefined) {
+            if (
+              !args.includes('--timeout') &&
+              options.timeoutMs === undefined
+            ) {
               const value = getValue('--timeout', index);
               if (value !== undefined) {
                 const parsedTimeout = Number(value);
@@ -391,7 +400,7 @@ export function parseCli(
           case entry === '--url':
           case entry.startsWith('--url='):
             if (
-              !argv.includes('--url') &&
+              !args.includes('--url') &&
               options.url === DEFAULT_PRODUCT_URL
             ) {
               const value = getValue('--url', index);

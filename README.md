@@ -24,10 +24,10 @@ yarn install
 yarn start
 
 # Parse another product and print JSON
-yarn start -- --url "https://www.ozon.ru/product/<slug>/<id>/" --json
+yarn start --url "https://www.ozon.ru/product/<slug>/<id>/" --json
 
 # Increase timeout and open a visible browser for debugging
-yarn start -- --timeout 90000 --no-headless
+yarn start --timeout 90000 --no-headless
 ```
 
 ### CLI options
@@ -69,7 +69,7 @@ When the browser is kept open, the CLI waits until you press Enter (or close the
 ### Proxy usage example
 
 ```bash
-yarn start -- --proxy "socks5://proxy-host:9050" --proxy-username mylogin --proxy-password mypass
+yarn start --proxy "socks5://proxy-host:9050" --proxy-username mylogin --proxy-password mypass
 ```
 
 You can also set the corresponding `PARSER_PROXY*` environment variables to avoid passing secrets via CLI flags.
@@ -83,10 +83,10 @@ Many antidetect browsers expose the Chrome DevTools protocol. Start your profile
 yarn launch:profile --folder <folderId> --profile <profileId> --token <apiToken> --port 9222
 
 # If you know the full ws:// URL
-yarn start -- --connect-endpoint "ws://127.0.0.1:9222/devtools/browser/XXXX"
+yarn start --connect-endpoint "ws://127.0.0.1:9222/devtools/browser/XXXX"
 
 # If you only have the port (CLI will fetch /json/version automatically)
-yarn start -- --connect-port 9222
+yarn start --connect-port 9222
 ```
 
 Set `PARSER_CONNECT_ENDPOINT` or `PARSER_CONNECT_PORT` when you want these defaults applied automatically. The helper script also honours `ANTIDETECT_*` environment variables for server, token, folder, profile, and port.
@@ -104,7 +104,7 @@ Each folder (id and name) and its profiles (id and name) will be printed. Defaul
 Need a lightweight connectivity check before parsing? Use the scenario flag:
 
 ```bash
-yarn start -- --scenario openRoot --connect-port <port>
+yarn start --scenario openRoot --connect-port <port>
 ```
 
 This launches the antidetect profile, opens the marketplace root URL in your antidetect browser, and then exits without touching the product page. Other scenarios include `openProduct` (just open the product card) and `openGoogle` (connectivity smoke test).
