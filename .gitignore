@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+coverage/
+
+# Logs & diagnostics
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Env files
+.env
+.env.*
+
+# Puppeteer downloads / caches
+.cache/
+.local-chromium/
+
+# IDE metadata
+.idea/
+.vscode/
+

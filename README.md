@@ -1,0 +1,95 @@
+# Hands-on Parsing Ozon
+
+A NestJS-driven CLI that investigates how to extract structured data from an Ozon product page. The tool spins up a headless browser (via `puppeteer-extra` + stealth plugin), pulls the public product cart data, and prints the parsed result either as formatted text or JSON. The default target is the Adidas Grand Court Base 2.0 sneakers product page, but any public Ozon product URL can be supplied.
+
+> ⚠️ Ozon protects its catalog with antibot challenges. The CLI tries to behave like a real browser but you may still hit a challenge. See [Handling antibot protection](#handling-antibot-protection).
+
+## Prerequisites
+
+- Node.js ≥ 20
+- Yarn 1.x (`corepack enable` or install globally)
+
+During the first run Puppeteer downloads a bundled Chromium build (~120 MB). Make sure outbound network access is allowed.
+
+## Installation
+
+```bash
+yarn install
+```
+
+## Running the CLI
+
+```bash
+# Defaults to the Grand Court Base 2.0 card and pretty console output
+yarn start
+
+# Parse another product and print JSON
+yarn start -- --url "https://www.ozon.ru/product/<slug>/<id>/" --json
+
+# Increase timeout and open a visible browser for debugging
+yarn start -- --timeout 90000 --no-headless
+```
+
+### CLI options
+
+- `-u, --url <url>` – Ozon product page to parse (falls back to `OZON_PRODUCT_URL` or the default Adidas link)
+- `--json` / `--text` – select output format (text is default)
+- `--timeout <ms>` – navigation timeout (default 60000)
+- `--no-headless` / `--headless` – toggle headless Chromium
+- `-v, --verbose` – include stack traces on errors
+- `-h, --help` – show usage help
+
+### Environment variables
+
+- `OZON_PRODUCT_URL` – default product URL
+- `OUTPUT` – default output format (`json` or `text`)
+- `HEADLESS` – set to `false` to open a visible browser by default
+- `OZON_TIMEOUT` – default timeout in milliseconds
+
+## Handling antibot protection
+
+If the CLI reports an antibot challenge:
+
+- Retry later or reduce request frequency
+- Launch with `--no-headless` and solve the challenge manually to reuse cookies
+- Run behind a residential proxy or reuse session cookies exported from a logged-in browser
+
+Challenges are surfaced with their token so you can match them against Ozon’s support pages if needed.
+
+## Development scripts
+
+```bash
+yarn build   # TypeScript build
+yarn lint    # ESLint + Prettier integration
+yarn test    # Vitest unit tests
+
+./check.sh   # Format, lint, test, build, audit, and check outdated deps
+```
+
+## Project structure
+
+- `src/main.ts` – CLI entry point and argument parsing
+- `src/ozon-parser.service.ts` – Puppeteer workflow and JSON-LD parsing logic
+- `nest-cli.json`, `tsconfig*.json` – NestJS/TypeScript build config
+
+## Output sample (text mode)
+
+```text
+🛍️  Ozon Product Card
+----------------------------------------
+Title:       Кеды Adidas Sportswear Grand Court Base 2.0
+URL:         https://www.ozon.ru/product/kedy-adidas-sportswear-grand-court-base-2-0-1066650955/
+Price:       7 999 ₽
+Rating:      4.8 (1200 reviews)
+Brand:       Adidas
+Seller:      Ozon
+Breadcrumbs: Спорт › Обувь › Кеды
+Images:
+  - https://cdn.ozone.ru/.../image1.jpg
+  - https://cdn.ozone.ru/.../image2.jpg
+
+Description:
+Кеды Adidas Grand Court Base 2.0 — универсальная модель...
+```
+
+Actual output depends on what Ozon exposes in its JSON-LD payload and may differ from the example above.
