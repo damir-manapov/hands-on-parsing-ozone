@@ -158,10 +158,7 @@ export class OzonParserService {
       typedPage.setDefaultNavigationTimeout(timeout);
       typedPage.setDefaultTimeout(timeout);
 
-      await typedPage.goto(options.url, {
-        waitUntil: 'networkidle2',
-        timeout,
-      });
+      await this.navigateWithAnchor(typedPage, options.url, timeout);
 
       const evaluatePage = async (): Promise<EvaluationResult> =>
         typedPage.evaluate((): EvaluationResult => {
@@ -372,34 +369,7 @@ export class OzonParserService {
       typedPage.setDefaultNavigationTimeout(timeout);
       typedPage.setDefaultTimeout(timeout);
 
-      await typedPage.goto('about:blank', {
-        waitUntil: 'domcontentloaded',
-        timeout,
-      });
-      await new Promise((resolve) => setTimeout(resolve, 1_000));
-
-      await typedPage.evaluate((url) => {
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.target = '_blank';
-        anchor.rel = 'noopener noreferrer';
-        anchor.style.display = 'none';
-        document.body.appendChild(anchor);
-        anchor.click();
-      }, targetUrl);
-
-      try {
-        await typedPage.waitForNavigation({
-          waitUntil: 'domcontentloaded',
-          timeout,
-        });
-      } catch (error) {
-        this.logger.warn(
-          `Timed out waiting for anchor navigation (${targetUrl}): ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      }
+      await this.navigateWithAnchor(typedPage, targetUrl, timeout);
 
       const title = await typedPage.title();
 
@@ -452,6 +422,38 @@ export class OzonParserService {
     return info;
   }
 
+  private async navigateWithAnchor(
+    page: Page,
+    targetUrl: string,
+    timeout: number,
+  ): Promise<void> {
+    await page.goto('about:blank', {
+      waitUntil: 'domcontentloaded',
+      timeout,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+
+    await page.evaluate((url) => {
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.target = '_blank';
+      anchor.rel = 'noopener noreferrer';
+      anchor.style.display = 'none';
+      document.body.appendChild(anchor);
+      anchor.click();
+    }, targetUrl);
+
+    try {
+      await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout });
+    } catch (error) {
+      this.logger.warn(
+        `Timed out waiting for anchor navigation (${targetUrl}): ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
   private async performGoogleCheck(
     options: ParserOptions,
   ): Promise<ProductInfo> {
@@ -461,7 +463,7 @@ export class OzonParserService {
       const page = await browser.newPage();
       const typedPage = page as unknown as Page;
 
-      await page.setExtraHTTPHeaders({
+      await typedPage.setExtraHTTPHeaders({
         'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
       });
 
@@ -477,10 +479,7 @@ export class OzonParserService {
       typedPage.setDefaultTimeout(timeout);
 
       const targetUrl = 'https://www.google.com/';
-      await typedPage.goto(targetUrl, {
-        waitUntil: 'domcontentloaded',
-        timeout,
-      });
+      await this.navigateWithAnchor(typedPage, targetUrl, timeout);
 
       try {
         await typedPage.waitForSelector('input[name="q"]', { timeout: 10_000 });
