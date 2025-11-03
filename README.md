@@ -32,12 +32,14 @@ yarn start -- --timeout 90000 --no-headless
 
 ### CLI options
 
-- `-u, --url <url>` – Ozon product page to parse (falls back to `OZON_PRODUCT_URL` or the default Adidas link)
+- `-u, --url <url>` – Ozon product page to parse (falls back to `PARSER_PRODUCT_URL` or the default Adidas link)
 - `--json` / `--text` – select output format (text is default)
 - `--timeout <ms>` – navigation timeout (default 60000)
 - `--no-headless` / `--headless` – toggle headless Chromium
 - `--auto-close` – close the browser automatically even when headful
 - `--keep-browser-open` – force the browser to stay open until you press Enter
+- `--proxy <url>` – route traffic through `http`, `https`, or `socks5` proxy
+- `--proxy-username` / `--proxy-password` – provide proxy basic auth credentials
 - `-v, --verbose` – include stack traces on errors
 - `-h, --help` – show usage help
 
@@ -45,10 +47,20 @@ When the browser is kept open, the CLI waits until you press Enter (or close the
 
 ### Environment variables
 
-- `OZON_PRODUCT_URL` – default product URL
-- `OUTPUT` – default output format (`json` or `text`)
-- `HEADLESS` – set to `false` to open a visible browser by default
-- `OZON_TIMEOUT` – default timeout in milliseconds
+- `PARSER_PRODUCT_URL` – default product URL
+- `PARSER_OUTPUT` – default output format (`json` or `text`)
+- `PARSER_HEADLESS` – set to `false` to open a visible browser by default
+- `PARSER_TIMEOUT` – default timeout in milliseconds
+- `PARSER_PROXY` (or `HTTPS_PROXY`/`HTTP_PROXY`) – proxy URL used by default
+- `PARSER_PROXY_USERNAME` / `PARSER_PROXY_PASSWORD` – proxy credentials
+
+### Proxy usage example
+
+```bash
+yarn start -- --proxy "socks5://proxy-host:9050" --proxy-username mylogin --proxy-password mypass
+```
+
+You can also set the corresponding `PARSER_PROXY*` environment variables to avoid passing secrets via CLI flags.
 
 ## Handling antibot protection
 

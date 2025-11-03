@@ -36,6 +36,9 @@ export interface ParserOptions {
   headless?: boolean;
   timeoutMs?: number;
   keepBrowserOpen?: boolean;
+  proxy?: string;
+  proxyUsername?: string;
+  proxyPassword?: string;
 }
 
 export interface RunOptions extends ParserOptions {
@@ -68,9 +71,14 @@ export class OzonParserService {
   }
 
   async parseProduct(options: ParserOptions): Promise<ProductInfo> {
+    const launchArgs = ['--no-sandbox', '--disable-setuid-sandbox'];
+    if (options.proxy) {
+      launchArgs.push(`--proxy-server=${options.proxy}`);
+    }
+
     const browser = await puppeteer.launch({
       headless: options.headless === false ? false : true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: launchArgs,
     });
 
     try {
@@ -79,6 +87,13 @@ export class OzonParserService {
       await page.setExtraHTTPHeaders({
         'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
       });
+
+      if (options.proxyUsername || options.proxyPassword) {
+        await page.authenticate({
+          username: options.proxyUsername ?? '',
+          password: options.proxyPassword ?? '',
+        });
+      }
 
       const timeout = options.timeoutMs ?? 60_000;
       page.setDefaultNavigationTimeout(timeout);

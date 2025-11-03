@@ -16,6 +16,9 @@ describe('parseCli', () => {
       headless: true,
       verbose: false,
       keepBrowserOpen: false,
+      proxy: undefined,
+      proxyUsername: undefined,
+      proxyPassword: undefined,
     });
   });
 
@@ -27,10 +30,13 @@ describe('parseCli', () => {
 
   it('overrides defaults from CLI flags and environment variables', () => {
     const env = {
-      OZON_PRODUCT_URL: 'https://example.com/product/1',
-      OUTPUT: 'json',
-      HEADLESS: 'false',
-      OZON_TIMEOUT: '15000',
+      PARSER_PRODUCT_URL: 'https://example.com/product/1',
+      PARSER_OUTPUT: 'json',
+      PARSER_HEADLESS: 'false',
+      PARSER_TIMEOUT: '15000',
+      PARSER_PROXY: 'socks5://127.0.0.1:9050',
+      PARSER_PROXY_USERNAME: 'alice',
+      PARSER_PROXY_PASSWORD: 'secret',
     } satisfies NodeJS.ProcessEnv;
 
     const { options } = parseCli(
@@ -44,7 +50,32 @@ describe('parseCli', () => {
       headless: false,
       timeoutMs: 20000,
       keepBrowserOpen: true,
+      proxy: 'socks5://127.0.0.1:9050',
+      proxyUsername: 'alice',
+      proxyPassword: 'secret',
     });
+  });
+
+  it('prefers CLI proxy options over env defaults', () => {
+    const env = {
+      HTTPS_PROXY: 'http://fallback-proxy:8888',
+    } satisfies NodeJS.ProcessEnv;
+
+    const { options } = parseCli(
+      [
+        '--proxy',
+        'http://primary-proxy:8080',
+        '--proxy-username',
+        'bob',
+        '--proxy-password',
+        'hunter2',
+      ],
+      env,
+    );
+
+    expect(options.proxy).toBe('http://primary-proxy:8080');
+    expect(options.proxyUsername).toBe('bob');
+    expect(options.proxyPassword).toBe('hunter2');
   });
 
   it('respects --auto-close flag', () => {

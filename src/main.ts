@@ -42,6 +42,9 @@ async function bootstrap() {
       headless: cli.headless,
       timeoutMs: cli.timeoutMs,
       keepBrowserOpen: cli.keepBrowserOpen,
+      proxy: cli.proxy,
+      proxyUsername: cli.proxyUsername,
+      proxyPassword: cli.proxyPassword,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
