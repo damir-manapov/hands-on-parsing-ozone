@@ -88,16 +88,15 @@ Set `PARSER_CONNECT_ENDPOINT` or `PARSER_CONNECT_PORT` when you want these defau
 To audit what profiles exist on the antidetect service:
 
 ```bash
-yarn list:profiles --token <apiToken>
+yarn list:profiles [--token <apiToken>]
 ```
 
-Each folder (id and name) and its profiles (id and name) will be printed. Defaults can be supplied via `ANTIDETECT_SERVER` and `ANTIDETECT_TOKEN`.
-If you omit `--server`, the script targets `http://127.0.0.1:3030` (same as the launch helper).
+Each folder (id and name) and its profiles (id and name) will be printed. Defaults can be supplied via `ANTIDETECT_SERVER` and `ANTIDETECT_TOKEN`; omit `--token` if your service doesn’t require authentication. If you omit `--server`, the script targets `https://v1.empr.cloud` by default.
 
 To inspect profiles that are already running:
 
 ```bash
-yarn list:running --token <apiToken>
+yarn list:running [--token <apiToken>]
 ```
 
 This prints the profile id, optional name, folder id, and websocket endpoint when available.

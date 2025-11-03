@@ -1,6 +1,7 @@
 type RunningOptions = {
   server: string;
-  token: string;
+  token?: string;
+  verbose: boolean;
 };
 
 type RunningProfile = {
@@ -17,6 +18,7 @@ function parseRunningArgs(
   const options: Partial<RunningOptions> = {
     server: env.ANTIDETECT_SERVER ?? 'http://127.0.0.1:3030',
     token: env.ANTIDETECT_TOKEN,
+    verbose: env.VERBOSE === '1' || env.VERBOSE === 'true',
   };
 
   const ensureValue = (index: number, flag: string): string => {
@@ -43,6 +45,10 @@ function parseRunningArgs(
         index += 1;
         break;
       }
+      case '--verbose':
+      case '-v':
+        options.verbose = true;
+        break;
       case '--help':
       case '-h':
         printRunningHelp();
@@ -55,15 +61,10 @@ function parseRunningArgs(
     }
   }
 
-  if (!options.token) {
-    throw new Error(
-      'Missing API token. Provide --token or ANTIDETECT_TOKEN env var.',
-    );
-  }
-
   return {
     server: options.server ?? 'http://127.0.0.1:3030',
     token: options.token,
+    verbose: options.verbose ?? false,
   } satisfies RunningOptions;
 }
 
@@ -88,11 +89,21 @@ async function fetchRunning(
   options: RunningOptions,
 ): Promise<RunningProfile[]> {
   const url = new URL('/list', options.server);
+  if (options.verbose) {
+    console.log(`GET ${url.toString()}`);
+  }
+  const headers: Record<string, string> = {};
+  if (options.token) {
+    headers['X-Token'] = options.token;
+  }
+
+  if (options.verbose && Object.keys(headers).length > 0) {
+    console.log('Headers:', headers);
+  }
+
   const response = await fetch(url, {
     method: 'GET',
-    headers: {
-      'X-Token': options.token,
-    },
+    headers,
   });
 
   if (!response.ok) {
@@ -102,14 +113,35 @@ async function fetchRunning(
     );
   }
 
-  const payload = (await response.json()) as unknown;
-  if (!Array.isArray(payload)) {
-    return [];
-  }
+  const text = await response.text();
+  try {
+    const payload = JSON.parse(text) as unknown;
+    if (options.verbose) {
+      console.log('Response payload:', JSON.stringify(payload, null, 2));
+    }
 
-  return payload
-    .map((entry) => normalizeRunning(entry as Record<string, unknown>))
-    .filter(Boolean) as RunningProfile[];
+    let entries: unknown;
+    if (Array.isArray(payload)) {
+      entries = payload;
+    } else if (
+      payload &&
+      typeof payload === 'object' &&
+      Array.isArray((payload as Record<string, unknown>).profiles)
+    ) {
+      entries = (payload as Record<string, unknown>).profiles;
+    } else {
+      entries = [];
+    }
+
+    return (entries as unknown[])
+      .map((entry) => normalizeRunning(entry as Record<string, unknown>))
+      .filter(Boolean) as RunningProfile[];
+  } catch (error) {
+    if (options.verbose) {
+      console.error('Failed to parse response JSON. Raw body:', text);
+    }
+    throw error;
+  }
 }
 
 function normalizeRunning(
