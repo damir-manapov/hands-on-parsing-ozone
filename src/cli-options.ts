@@ -15,6 +15,8 @@ export interface CliOptions {
   proxyPassword?: string;
   connectEndpoint?: string;
   connectPort?: number;
+  checkByGoogle: boolean;
+  openProductPageOnly: boolean;
 }
 
 export interface CliParseResult {
@@ -38,6 +40,8 @@ Options:
   --proxy-password <v>   Password for proxy authentication
   --connect-endpoint <ws>  Connect to an existing browser via WebSocket endpoint
   --connect-port <port>    Resolve WebSocket endpoint from http://127.0.0.1:<port>/json/version
+  --check-google           Skip product parsing and open Google to verify connectivity
+  --open-product-page-only  Open the product page but skip parsing/printing results
   -v, --verbose          Print stack traces on error
   -h, --help             Show this help message
 
@@ -51,6 +55,8 @@ Environment variables:
   PARSER_PROXY_PASSWORD  Proxy basic auth password
   PARSER_CONNECT_ENDPOINT  Browser WebSocket endpoint
   PARSER_CONNECT_PORT      Browser remote debugging port
+  PARSER_CHECK_GOOGLE      Set to 'true' to open Google instead of parsing a product
+  PARSER_OPEN_PRODUCT_ONLY  Set to 'true' to open the product page without parsing
 `;
 
 export function formatHelpMessage(): string {
@@ -92,6 +98,12 @@ export function parseCli(
     proxyPassword: env.PARSER_PROXY_PASSWORD,
     connectEndpoint: env.PARSER_CONNECT_ENDPOINT,
     connectPort: parseNumber(env.PARSER_CONNECT_PORT),
+    checkByGoogle:
+      (env.PARSER_CHECK_GOOGLE ?? '').toLowerCase() === 'true' ||
+      env.PARSER_CHECK_GOOGLE === '1',
+    openProductPageOnly:
+      (env.PARSER_OPEN_PRODUCT_ONLY ?? '').toLowerCase() === 'true' ||
+      env.PARSER_OPEN_PRODUCT_ONLY === '1',
   };
 
   let helpRequested = false;
@@ -187,6 +199,12 @@ export function parseCli(
       case '-v':
         options.verbose = true;
         break;
+      case '--check-google':
+        options.checkByGoogle = true;
+        break;
+      case '--open-product-page-only':
+        options.openProductPageOnly = true;
+        break;
       default:
         if (arg.startsWith('-')) {
           throw new Error(`Unknown argument: ${arg}`);
@@ -215,6 +233,162 @@ export function parseCli(
     throw new Error(
       'Provide either --connect-endpoint or --connect-port, not both.',
     );
+  }
+
+  const raw = env.npm_config_argv;
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw) as {
+        original?: unknown;
+      };
+      const original = Array.isArray(parsed.original)
+        ? (parsed.original as unknown[]).map((value) =>
+            typeof value === 'string' ? value : '',
+          )
+        : [];
+
+      if (!options.checkByGoogle && original.includes('--check-google')) {
+        options.checkByGoogle = true;
+      }
+
+      if (
+        !options.openProductPageOnly &&
+        original.includes('--open-product-page-only')
+      ) {
+        options.openProductPageOnly = true;
+      }
+
+      if (
+        !argv.includes('--no-headless') &&
+        original.includes('--no-headless')
+      ) {
+        options.headless = false;
+        options.keepBrowserOpen = true;
+      }
+
+      if (!argv.includes('--headless') && original.includes('--headless')) {
+        options.headless = true;
+        options.keepBrowserOpen = false;
+      }
+
+      if (!argv.includes('--auto-close') && original.includes('--auto-close')) {
+        options.keepBrowserOpen = false;
+      }
+
+      if (
+        !argv.includes('--keep-browser-open') &&
+        original.includes('--keep-browser-open')
+      ) {
+        options.keepBrowserOpen = true;
+      }
+
+      if (!argv.includes('--verbose') && original.includes('--verbose')) {
+        options.verbose = true;
+      }
+
+      const getValue = (flag: string, index: number): string | undefined => {
+        const entry = original[index];
+        if (!entry) return undefined;
+        const [name, inline] = entry.split('=');
+        if (name !== flag) return undefined;
+        if (inline !== undefined && inline.length > 0) {
+          return inline;
+        }
+
+        const next = original[index + 1];
+        if (typeof next === 'string' && !next.startsWith('--')) {
+          return next;
+        }
+
+        return undefined;
+      };
+
+      for (let index = 0; index < original.length; index += 1) {
+        const entry = original[index];
+        if (!entry.startsWith('--')) continue;
+
+        switch (true) {
+          case entry === '--connect-port':
+          case entry.startsWith('--connect-port='):
+            if (
+              options.connectPort === undefined &&
+              options.connectEndpoint === undefined
+            ) {
+              const value = getValue('--connect-port', index);
+              if (value !== undefined) {
+                const parsedPort = Number(value);
+                if (Number.isFinite(parsedPort)) {
+                  options.connectPort = parsedPort;
+                }
+              }
+            }
+            break;
+          case entry === '--connect-endpoint':
+          case entry.startsWith('--connect-endpoint='):
+            if (!options.connectEndpoint) {
+              const value = getValue('--connect-endpoint', index);
+              if (value) {
+                options.connectEndpoint = value;
+                options.connectPort = undefined;
+              }
+            }
+            break;
+          case entry === '--proxy':
+          case entry.startsWith('--proxy='):
+            if (!argv.includes('--proxy') && !options.proxy) {
+              const value = getValue('--proxy', index);
+              if (value) {
+                options.proxy = value;
+              }
+            }
+            break;
+          case entry === '--proxy-username':
+          case entry.startsWith('--proxy-username='):
+            if (!argv.includes('--proxy-username') && !options.proxyUsername) {
+              const value = getValue('--proxy-username', index);
+              if (value) {
+                options.proxyUsername = value;
+              }
+            }
+            break;
+          case entry === '--proxy-password':
+          case entry.startsWith('--proxy-password='):
+            if (!argv.includes('--proxy-password') && !options.proxyPassword) {
+              const value = getValue('--proxy-password', index);
+              if (value) {
+                options.proxyPassword = value;
+              }
+            }
+            break;
+          case entry === '--timeout':
+          case entry.startsWith('--timeout='):
+            if (options.timeoutMs === undefined) {
+              const value = getValue('--timeout', index);
+              if (value !== undefined) {
+                const parsedTimeout = Number(value);
+                if (Number.isFinite(parsedTimeout)) {
+                  options.timeoutMs = parsedTimeout;
+                }
+              }
+            }
+            break;
+          case entry === '--url':
+          case entry.startsWith('--url='):
+            if (
+              !argv.includes('--url') &&
+              options.url === DEFAULT_PRODUCT_URL
+            ) {
+              const value = getValue('--url', index);
+              if (value) {
+                options.url = value;
+              }
+            }
+            break;
+        }
+      }
+    } catch {
+      // ignore malformed npm_config_argv
+    }
   }
 
   return { options, helpRequested };

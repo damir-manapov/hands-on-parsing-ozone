@@ -21,6 +21,8 @@ describe('parseCli', () => {
       proxyPassword: undefined,
       connectEndpoint: undefined,
       connectPort: undefined,
+      checkByGoogle: false,
+      openProductPageOnly: false,
     });
   });
 
@@ -40,6 +42,8 @@ describe('parseCli', () => {
       PARSER_PROXY_USERNAME: 'alice',
       PARSER_PROXY_PASSWORD: 'secret',
       PARSER_CONNECT_ENDPOINT: 'ws://127.0.0.1:9222/devtools/browser/abc',
+      PARSER_CHECK_GOOGLE: 'true',
+      PARSER_OPEN_PRODUCT_ONLY: 'true',
     } satisfies NodeJS.ProcessEnv;
 
     const { options } = parseCli(
@@ -58,6 +62,8 @@ describe('parseCli', () => {
       proxyPassword: 'secret',
       connectEndpoint: 'ws://127.0.0.1:9222/devtools/browser/abc',
       connectPort: undefined,
+      checkByGoogle: true,
+      openProductPageOnly: true,
     });
   });
 
@@ -85,6 +91,59 @@ describe('parseCli', () => {
     expect(options.proxyPassword).toBe('hunter2');
     expect(options.connectPort).toBe(9333);
     expect(options.connectEndpoint).toBeUndefined();
+  });
+
+  it('enables google check via flag', () => {
+    const { options } = parseCli(['--check-google'], {} as NodeJS.ProcessEnv);
+    expect(options.checkByGoogle).toBe(true);
+  });
+
+  it('enables open product page via flag', () => {
+    const { options } = parseCli(
+      ['--open-product-page-only'],
+      {} as NodeJS.ProcessEnv,
+    );
+    expect(options.openProductPageOnly).toBe(true);
+  });
+
+  it('recovers stripped flags from npm_config_argv', () => {
+    const env = {
+      npm_config_argv: JSON.stringify({
+        original: [
+          'nest',
+          'start',
+          '--no-headless',
+          '--connect-port',
+          '9333',
+          '--open-product-page-only',
+        ],
+      }),
+    } satisfies NodeJS.ProcessEnv;
+
+    const { options } = parseCli([], env);
+    expect(options.headless).toBe(false);
+    expect(options.keepBrowserOpen).toBe(true);
+    expect(options.connectPort).toBe(9333);
+    expect(options.connectEndpoint).toBeUndefined();
+    expect(options.openProductPageOnly).toBe(true);
+  });
+
+  it('recovers endpoint from npm_config_argv with equals syntax', () => {
+    const env = {
+      npm_config_argv: JSON.stringify({
+        original: [
+          'nest',
+          'start',
+          '--connect-endpoint=ws://127.0.0.1:9222/devtools/browser/xyz',
+        ],
+      }),
+    } satisfies NodeJS.ProcessEnv;
+
+    const { options } = parseCli([], env);
+    expect(options.connectEndpoint).toBe(
+      'ws://127.0.0.1:9222/devtools/browser/xyz',
+    );
+    expect(options.connectPort).toBeUndefined();
   });
 
   it('respects --auto-close flag', () => {

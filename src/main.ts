@@ -34,6 +34,24 @@ async function bootstrap() {
 
   const logger = new Logger('CLI');
 
+  const displayedOptions = {
+    url: cli.url,
+    output: cli.output,
+    headless: cli.headless,
+    timeoutMs: cli.timeoutMs ?? null,
+    verbose: cli.verbose,
+    keepBrowserOpen: cli.keepBrowserOpen,
+    proxy: cli.proxy ?? null,
+    proxyUsername: cli.proxyUsername ?? null,
+    proxyPassword: cli.proxyPassword ? '***' : null,
+    connectEndpoint: cli.connectEndpoint ?? null,
+    connectPort: cli.connectPort ?? null,
+    checkByGoogle: cli.checkByGoogle,
+    openProductPageOnly: cli.openProductPageOnly,
+  };
+
+  console.log('Parsed CLI options:', JSON.stringify(displayedOptions, null, 2));
+
   try {
     const parser = app.get(OzonParserService);
     await parser.run({
@@ -45,6 +63,10 @@ async function bootstrap() {
       proxy: cli.proxy,
       proxyUsername: cli.proxyUsername,
       proxyPassword: cli.proxyPassword,
+      connectEndpoint: cli.connectEndpoint,
+      connectPort: cli.connectPort,
+      checkByGoogle: cli.checkByGoogle,
+      openProductPageOnly: cli.openProductPageOnly,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

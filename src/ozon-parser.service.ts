@@ -42,6 +42,8 @@ export interface ParserOptions {
   proxyPassword?: string;
   connectEndpoint?: string;
   connectPort?: number;
+  checkByGoogle?: boolean;
+  openProductPageOnly?: boolean;
 }
 
 export interface RunOptions extends ParserOptions {
@@ -62,6 +64,48 @@ export class OzonParserService {
   private readonly logger = new Logger(OzonParserService.name);
 
   async run(options: RunOptions): Promise<ProductInfo> {
+    if (options.checkByGoogle) {
+      const info = await this.performGoogleCheck(options);
+      if (options.output === 'json') {
+        console.log(
+          JSON.stringify(
+            {
+              success: true,
+              title: info.title,
+              url: info.url,
+            },
+            null,
+            2,
+          ),
+        );
+      } else {
+        console.log(`✅ Google reachable (${info.title})`);
+      }
+
+      return info;
+    }
+
+    if (options.openProductPageOnly) {
+      const info = await this.openProductPage(options);
+      if (options.output === 'json') {
+        console.log(
+          JSON.stringify(
+            {
+              success: true,
+              title: info.title,
+              url: info.url,
+            },
+            null,
+            2,
+          ),
+        );
+      } else {
+        console.log(`✅ Opened product page (${info.title})`);
+      }
+
+      return info;
+    }
+
     const info = await this.parseProduct(options);
 
     if (options.output === 'json') {
@@ -99,154 +143,384 @@ export class OzonParserService {
         timeout,
       });
 
-      const evaluation = await page.evaluate((): EvaluationResult => {
-        const toArray = <T>(value: unknown): T[] => {
-          if (Array.isArray(value)) {
-            return value.filter(
-              (item): item is T => item !== undefined && item !== null,
+      const evaluatePage = async (): Promise<EvaluationResult> =>
+        page.evaluate((): EvaluationResult => {
+          const toArray = <T>(value: unknown): T[] => {
+            if (Array.isArray(value)) {
+              return value.filter(
+                (item): item is T => item !== undefined && item !== null,
+              );
+            }
+
+            if (value === undefined || value === null) {
+              return [];
+            }
+
+            return [value as T];
+          };
+
+          const parseJsonLd = (): unknown[] => {
+            const scripts = Array.from(
+              document.querySelectorAll('script[type="application/ld+json"]'),
             );
-          }
 
-          if (value === undefined || value === null) {
+            const nodes: unknown[] = [];
+
+            for (const script of scripts) {
+              const raw = script.textContent?.trim();
+
+              if (!raw) continue;
+
+              try {
+                nodes.push(JSON.parse(raw));
+                continue;
+              } catch {
+                // ignore and try to fix invalid JSON-LD formatting below
+              }
+
+              try {
+                const normalized = raw
+                  .replace(/\s{2,}/g, ' ')
+                  .replace(/\n/g, ' ')
+                  .replace(/\r/g, ' ')
+                  .trim();
+                nodes.push(JSON.parse(normalized));
+              } catch {
+                // still invalid; skip silently
+              }
+            }
+
+            return nodes;
+          };
+
+          const flattenJsonLd = (input: unknown): Record<string, unknown>[] => {
+            if (!input) return [];
+
+            if (Array.isArray(input)) {
+              return input.flatMap((item) => flattenJsonLd(item));
+            }
+
+            if (typeof input === 'object') {
+              const record = input as Record<string, unknown>;
+              if (record['@graph']) {
+                return flattenJsonLd(record['@graph']);
+              }
+
+              return [record];
+            }
+
             return [];
-          }
+          };
 
-          return [value as T];
-        };
-
-        const parseJsonLd = (): unknown[] => {
-          const scripts = Array.from(
-            document.querySelectorAll('script[type="application/ld+json"]'),
+          const jsonLdNodes = parseJsonLd().flatMap((node) =>
+            flattenJsonLd(node),
           );
 
-          const nodes: unknown[] = [];
+          const productNode =
+            jsonLdNodes.find(
+              (node) =>
+                typeof node === 'object' &&
+                node !== null &&
+                node['@type'] === 'Product',
+            ) ?? null;
 
-          for (const script of scripts) {
-            const raw = script.textContent?.trim();
+          const breadcrumbs = jsonLdNodes
+            .filter(
+              (node) =>
+                typeof node === 'object' &&
+                node !== null &&
+                node['@type'] === 'BreadcrumbList',
+            )
+            .flatMap((node) => {
+              const record = node;
+              const elements = toArray<Record<string, unknown>>(
+                record.itemListElement,
+              );
 
-            if (!raw) continue;
+              return elements
+                .map((element) => {
+                  const nested = element.item as
+                    | Record<string, unknown>
+                    | undefined;
+                  const candidate = element.name ?? nested?.name;
 
-            try {
-              nodes.push(JSON.parse(raw));
-              continue;
-            } catch {
-              // ignore and try to fix invalid JSON-LD formatting below
-            }
+                  return typeof candidate === 'string' ? candidate : null;
+                })
+                .filter((item): item is string => Boolean(item));
+            });
 
-            try {
-              const normalized = raw
-                .replace(/\s{2,}/g, ' ')
-                .replace(/\n/g, ' ')
-                .replace(/\r/g, ' ')
-                .trim();
-              nodes.push(JSON.parse(normalized));
-            } catch {
-              // still invalid; skip silently
-            }
-          }
+          const heading =
+            document
+              .querySelector('[data-widget="webProductHeading"] h1')
+              ?.textContent?.trim() ??
+            document.querySelector('h1')?.textContent?.trim() ??
+            null;
 
-          return nodes;
-        };
+          const priceRoot =
+            document.querySelector('[data-widget="webPrice"]') ??
+            document.querySelector('[data-widget="webSale"]');
 
-        const flattenJsonLd = (input: unknown): Record<string, unknown>[] => {
-          if (!input) return [];
+          const priceText = priceRoot
+            ? (priceRoot.textContent?.replace(/\s+/g, ' ').trim() ?? null)
+            : null;
 
-          if (Array.isArray(input)) {
-            return input.flatMap((item) => flattenJsonLd(item));
-          }
+          const result: EvaluationResult = {
+            isChallenge:
+              document.title?.toLowerCase().includes('antibot') ?? false,
+            challengeToken:
+              (document.getElementById('challenge') as HTMLInputElement | null)
+                ?.value ?? null,
+            heading,
+            priceText,
+            product: productNode,
+            breadcrumbs,
+          };
 
-          if (typeof input === 'object') {
-            const record = input as Record<string, unknown>;
-            if (record['@graph']) {
-              return flattenJsonLd(record['@graph']);
-            }
+          return result;
+        });
 
-            return [record];
-          }
-
-          return [];
-        };
-
-        const jsonLdNodes = parseJsonLd().flatMap((node) =>
-          flattenJsonLd(node),
-        );
-
-        const productNode =
-          jsonLdNodes.find(
-            (node) =>
-              typeof node === 'object' &&
-              node !== null &&
-              node['@type'] === 'Product',
-          ) ?? null;
-
-        const breadcrumbs = jsonLdNodes
-          .filter(
-            (node) =>
-              typeof node === 'object' &&
-              node !== null &&
-              node['@type'] === 'BreadcrumbList',
-          )
-          .flatMap((node) => {
-            const record = node;
-            const elements = toArray<Record<string, unknown>>(
-              record.itemListElement,
-            );
-
-            return elements
-              .map((element) => {
-                const nested = element.item as
-                  | Record<string, unknown>
-                  | undefined;
-                const candidate = element.name ?? nested?.name;
-
-                return typeof candidate === 'string' ? candidate : null;
-              })
-              .filter((item): item is string => Boolean(item));
-          });
-
-        const heading =
-          document
-            .querySelector('[data-widget="webProductHeading"] h1')
-            ?.textContent?.trim() ??
-          document.querySelector('h1')?.textContent?.trim() ??
-          null;
-
-        const priceRoot =
-          document.querySelector('[data-widget="webPrice"]') ??
-          document.querySelector('[data-widget="webSale"]');
-
-        const priceText = priceRoot
-          ? (priceRoot.textContent?.replace(/\s+/g, ' ').trim() ?? null)
-          : null;
-
-        const result: EvaluationResult = {
-          isChallenge:
-            document.title?.toLowerCase().includes('antibot') ?? false,
-          challengeToken:
-            (document.getElementById('challenge') as HTMLInputElement | null)
-              ?.value ?? null,
-          heading,
-          priceText,
-          product: productNode,
-          breadcrumbs,
-        };
-
-        return result;
-      });
+      let evaluation = await evaluatePage();
 
       if (evaluation.isChallenge) {
         const details = evaluation.challengeToken
           ? `Encountered Ozon antibot challenge (token ${evaluation.challengeToken}).`
           : 'Encountered Ozon antibot challenge.';
-        throw new Error(
-          `${details} Try running with residential proxies, solving the challenge in a browser and reusing cookies, or slowing down navigation.`,
+
+        if (options.headless !== false) {
+          throw new Error(
+            `${details} Try running with residential proxies, solving the challenge in a browser and reusing cookies, or slowing down navigation.`,
+          );
+        }
+
+        this.logger.warn(
+          `${details} Solve it manually in the opened browser, then press Enter here to retry.`,
         );
+        await this.waitForUserSignal();
+
+        try {
+          await page.waitForNavigation({
+            waitUntil: 'domcontentloaded',
+            timeout,
+          });
+        } catch {
+          // ignore navigation timeout; we'll re-evaluate regardless
+        }
+
+        evaluation = await evaluatePage();
+
+        if (evaluation.isChallenge) {
+          throw new Error(
+            `${details} Still active after manual retry. Try re-running once the challenge is fully cleared.`,
+          );
+        }
       }
 
       return this.normalizeProductInfo({
         evaluation,
         url: options.url,
       });
+    } finally {
+      if (
+        ownsBrowser &&
+        options.keepBrowserOpen &&
+        options.headless === false
+      ) {
+        await this.waitForHeadfulBrowser(browser);
+      }
+
+      if (ownsBrowser) {
+        if (browser.connected) {
+          await browser.close();
+        }
+      } else if (browser.connected) {
+        void browser.disconnect();
+      }
+    }
+  }
+
+  private async performGoogleCheck(
+    options: ParserOptions,
+  ): Promise<ProductInfo> {
+    const { browser, ownsBrowser } = await this.acquireBrowser(options);
+
+    try {
+      const page = await browser.newPage();
+
+      await page.setExtraHTTPHeaders({
+        'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+      });
+
+      if (options.proxyUsername || options.proxyPassword) {
+        await page.authenticate({
+          username: options.proxyUsername ?? '',
+          password: options.proxyPassword ?? '',
+        });
+      }
+
+      const timeout = options.timeoutMs ?? 30_000;
+      page.setDefaultNavigationTimeout(timeout);
+      page.setDefaultTimeout(timeout);
+
+      const targetUrl = 'https://www.google.com/';
+      await page.goto(targetUrl, {
+        waitUntil: 'domcontentloaded',
+        timeout,
+      });
+
+      try {
+        await page.waitForSelector('input[name="q"]', { timeout: 10_000 });
+      } catch (error) {
+        this.logger.warn(
+          `Google check loaded but search box not found: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+
+      const title = (await page.title()) || 'Google';
+
+      return {
+        title,
+        url: targetUrl,
+        sku: null,
+        brand: null,
+        description: null,
+        price: {
+          value: null,
+          currency: null,
+          displayText: null,
+          availability: null,
+        },
+        rating: null,
+        seller: null,
+        breadcrumbs: [],
+        images: [],
+        rawPriceText: null,
+      } satisfies ProductInfo;
+    } finally {
+      if (
+        ownsBrowser &&
+        options.keepBrowserOpen &&
+        options.headless === false
+      ) {
+        await this.waitForHeadfulBrowser(browser);
+      }
+
+      if (ownsBrowser) {
+        if (browser.connected) {
+          await browser.close();
+        }
+      } else if (browser.connected) {
+        void browser.disconnect();
+      }
+    }
+  }
+
+  private async openProductPage(options: ParserOptions): Promise<ProductInfo> {
+    const { browser, ownsBrowser } = await this.acquireBrowser(options);
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+      const page = await browser.newPage();
+
+      // await page.setExtraHTTPHeaders({
+      //   'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+      // });
+
+      // if (options.proxyUsername || options.proxyPassword) {
+      //   await page.authenticate({
+      //     username: options.proxyUsername ?? '',
+      //     password: options.proxyPassword ?? '',
+      //   });
+      // }
+
+      // const timeout = options.timeoutMs ?? 60_000;
+      // page.setDefaultNavigationTimeout(timeout);
+      // page.setDefaultTimeout(timeout);
+
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+      // await page.setExtraHTTPHeaders({
+      //   'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+      // });
+
+      // if (options.proxyUsername || options.proxyPassword) {
+      //   await page.authenticate({
+      //     username: options.proxyUsername ?? '',
+      //     password: options.proxyPassword ?? '',
+      //   });
+      // }
+
+      // const timeout = options.timeoutMs ?? 60_000;
+      // page.setDefaultNavigationTimeout(timeout);
+      // page.setDefaultTimeout(timeout);
+
+      const client = await page.createCDPSession();
+      try {
+        await client.send('Page.enable');
+        await new Promise((resolve) => setTimeout(resolve, 1_000));
+        await client.send('Page.navigate', { url: 'about:blank' });
+        await page.waitForNavigation({
+          waitUntil: 'domcontentloaded',
+          // timeout,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 1_000));
+        // await page.evaluate((url) => {
+        //   const a = document.createElement('a');
+        //   a.href = url;
+        //   a.target = '_self'; // same tab navigation
+        //   a.textContent = 'x';
+        //   a.style.display = 'none';
+        //   document.body.appendChild(a);
+        //   a.click(); // navigation will happen
+        // }, options.url); // doesn't work
+
+        await page.evaluate((url) => {
+          const a = document.createElement('a');
+          a.href = url;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+        }, options.url); // works
+        // await client.send('Page.navigate', { url: options.url });
+      } finally {
+        await client.detach().catch(() => undefined);
+      }
+
+      try {
+        await page.waitForNavigation({
+          waitUntil: 'domcontentloaded',
+          // timeout,
+        });
+      } catch (error) {
+        this.logger.warn(
+          `Timed out waiting for product page to load: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+
+      const title = await page.title();
+
+      return {
+        title: title || options.url,
+        url: options.url,
+        sku: null,
+        brand: null,
+        description: null,
+        price: {
+          value: null,
+          currency: null,
+          displayText: null,
+          availability: null,
+        },
+        rating: null,
+        seller: null,
+        breadcrumbs: [],
+        images: [],
+        rawPriceText: null,
+      } satisfies ProductInfo;
     } finally {
       if (
         ownsBrowser &&
@@ -309,6 +583,24 @@ export class OzonParserService {
         }, 120_000);
         fallbackTimer.unref?.();
       }
+    });
+  }
+
+  private async waitForUserSignal(): Promise<void> {
+    if (!process.stdin.isTTY) {
+      await new Promise((resolve) => setTimeout(resolve, 30_000));
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      process.stdin.resume();
+      process.stdin.setEncoding('utf8');
+      const onData = () => {
+        process.stdin.off('data', onData);
+        process.stdin.pause();
+        resolve();
+      };
+      process.stdin.on('data', onData);
     });
   }
 

@@ -42,6 +42,7 @@ yarn start -- --timeout 90000 --no-headless
 - `--proxy-username` / `--proxy-password` – provide proxy basic auth credentials
 - `--connect-endpoint <ws>` – attach to an already running Chromium instance via WebSocket endpoint
 - `--connect-port <port>` – resolve the WebSocket endpoint from `http://127.0.0.1:<port>/json/version`
+- `--check-google` – skip product parsing and simply open Google to verify browser connectivity
 - `-v, --verbose` – include stack traces on errors
 - `-h, --help` – show usage help
 
@@ -55,6 +56,7 @@ When the browser is kept open, the CLI waits until you press Enter (or close the
 - `PARSER_TIMEOUT` – default timeout in milliseconds
 - `PARSER_PROXY` (or `HTTPS_PROXY`/`HTTP_PROXY`) – proxy URL used by default
 - `PARSER_PROXY_USERNAME` / `PARSER_PROXY_PASSWORD` – proxy credentials
+- `PARSER_CHECK_GOOGLE` – set to `true` to run the Google connectivity check by default
 - `PARSER_CONNECT_ENDPOINT` – remote browser WebSocket endpoint
 - `PARSER_CONNECT_PORT` – remote debugging port (used to fetch the endpoint)
 
