@@ -36,7 +36,7 @@ yarn start --timeout 90000 --no-headless
 - `--json` / `--text` – select output format (text is default)
 - `--timeout <ms>` – navigation timeout (default 60000)
 - `--no-headless` / `--headless` – toggle headless Chromium
-- `--scenario <name>` – Execution mode: `parseProduct` (default), `openGoogle`, `openProduct`, `openRoot`
+- `--scenario <name>` – Execution mode: `parseProduct` (default), `openGoogle`, `openProduct`, `openRoot`, `openFirstProductFromRoot`
 - `--auto-close` – close the browser automatically even when headful
 - `--keep-browser-open` – force the browser to stay open until you press Enter
 - `--proxy <url>` – route traffic through `http`, `https`, or `socks5` proxy
@@ -107,7 +107,7 @@ Need a lightweight connectivity check before parsing? Use the scenario flag:
 yarn start --scenario openRoot --connect-port <port>
 ```
 
-This launches the antidetect profile, opens the marketplace root URL in your antidetect browser, and then exits without touching the product page. Other scenarios include `openProduct` (just open the product card) and `openGoogle` (connectivity smoke test).
+This launches the antidetect profile, opens the marketplace root URL in your antidetect browser, and then exits without touching the product page. Other scenarios include `openProduct` (just open the product card), `openFirstProductFromRoot` (open the root page and automatically follow the first product link), and `openGoogle` (connectivity smoke test).
 
 To inspect profiles that are already running:
 

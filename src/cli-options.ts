@@ -6,7 +6,8 @@ export type CliScenario =
   | 'parseProduct'
   | 'openGoogle'
   | 'openProduct'
-  | 'openRoot';
+  | 'openRoot'
+  | 'openFirstProductFromRoot';
 
 export interface CliOptions {
   url: string;
@@ -44,7 +45,7 @@ Options:
   --proxy-password <v>   Password for proxy authentication
   --connect-endpoint <ws>  Connect to an existing browser via WebSocket endpoint
   --connect-port <port>    Resolve WebSocket endpoint from http://127.0.0.1:<port>/json/version
-  --scenario <name>        Execution mode: parseProduct | openGoogle | openProduct | openRoot
+  --scenario <name>        Execution mode: 'parseProduct' (default), 'openGoogle', 'openProduct', 'openRoot', 'openFirstProductFromRoot'
   -v, --verbose          Print stack traces on error
   -h, --help             Show this help message
 
@@ -433,10 +434,11 @@ function validateScenario(value: string): CliScenario {
     case 'openGoogle':
     case 'openProduct':
     case 'openRoot':
+    case 'openFirstProductFromRoot':
       return value;
     default:
       throw new Error(
-        `Unknown scenario: ${value}. Expected parseProduct | openGoogle | openProduct | openRoot`,
+        `Unknown scenario: ${value}. Expected parseProduct | openGoogle | openProduct | openRoot | openFirstProductFromRoot`,
       );
   }
 }

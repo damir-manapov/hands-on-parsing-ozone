@@ -121,6 +121,25 @@ export class OzonParserService {
         }
         return info;
       }
+      case 'openFirstProductFromRoot': {
+        const info = await this.openFirstProductFromRoot(options);
+        if (options.output === 'json') {
+          console.log(
+            JSON.stringify(
+              {
+                success: true,
+                title: info.title,
+                url: info.url,
+              },
+              null,
+              2,
+            ),
+          );
+        } else {
+          console.log(`✅ Opened first product (${info.title})`);
+        }
+        return info;
+      }
       case 'parseProduct':
       default: {
         const info = await this.parseProduct(options);
@@ -371,26 +390,7 @@ export class OzonParserService {
 
       await this.navigateWithAnchor(typedPage, targetUrl, timeout);
 
-      const title = await typedPage.title();
-
-      const info: ProductInfo = {
-        title: title || targetUrl,
-        url: targetUrl,
-        sku: null,
-        brand: null,
-        description: null,
-        price: {
-          value: null,
-          currency: null,
-          displayText: null,
-          availability: null,
-        },
-        rating: null,
-        seller: null,
-        breadcrumbs: [],
-        images: [],
-        rawPriceText: null,
-      } satisfies ProductInfo;
+      const info = await this.buildSimpleInfo(typedPage, targetUrl);
 
       return { info, browser, ownsBrowser };
     } catch (error) {
@@ -420,6 +420,56 @@ export class OzonParserService {
     );
     await this.finishSimpleScenario({ browser, ownsBrowser, options });
     return info;
+  }
+
+  private async openFirstProductFromRoot(
+    options: RunOptions,
+  ): Promise<ProductInfo> {
+    const { browser, ownsBrowser } = await this.acquireBrowser(options);
+
+    try {
+      const page = await browser.newPage();
+      const typedPage = page as unknown as Page;
+
+      const timeout = options.timeoutMs ?? 60_000;
+      typedPage.setDefaultNavigationTimeout(timeout);
+      typedPage.setDefaultTimeout(timeout);
+
+      if (options.proxyUsername || options.proxyPassword) {
+        await typedPage.authenticate({
+          username: options.proxyUsername ?? '',
+          password: options.proxyPassword ?? '',
+        });
+      }
+
+      const rootUrl = new URL(options.url).origin;
+      await this.navigateWithAnchor(typedPage, rootUrl, timeout);
+
+      const productUrl = await typedPage.evaluate(() => {
+        const link = document.querySelector<HTMLAnchorElement>(
+          'a[href*="/product/"]',
+        );
+        return link?.href ?? null;
+      });
+
+      if (!productUrl) {
+        throw new Error('Could not find a product link on the root page.');
+      }
+
+      await this.navigateWithAnchor(typedPage, productUrl, timeout);
+
+      const info = await this.buildSimpleInfo(typedPage, productUrl);
+
+      await this.finishSimpleScenario({ browser, ownsBrowser, options });
+      return info;
+    } catch (error) {
+      if (ownsBrowser && browser.connected) {
+        await browser.close().catch(() => undefined);
+      } else if (browser.connected) {
+        void browser.disconnect();
+      }
+      throw error;
+    }
   }
 
   private async navigateWithAnchor(
@@ -976,5 +1026,28 @@ export class OzonParserService {
     } else {
       void browser.disconnect();
     }
+  }
+
+  private async buildSimpleInfo(page: Page, url: string): Promise<ProductInfo> {
+    const title = await page.title();
+
+    return {
+      title: title || url,
+      url,
+      sku: null,
+      brand: null,
+      description: null,
+      price: {
+        value: null,
+        currency: null,
+        displayText: null,
+        availability: null,
+      },
+      rating: null,
+      seller: null,
+      breadcrumbs: [],
+      images: [],
+      rawPriceText: null,
+    } satisfies ProductInfo;
   }
 }

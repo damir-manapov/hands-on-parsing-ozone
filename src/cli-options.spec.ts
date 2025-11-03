@@ -41,7 +41,7 @@ describe('parseCli', () => {
       PARSER_PROXY_USERNAME: 'alice',
       PARSER_PROXY_PASSWORD: 'secret',
       PARSER_CONNECT_ENDPOINT: 'ws://127.0.0.1:9222/devtools/browser/abc',
-      PARSER_SCENARIO: 'openRoot',
+      PARSER_SCENARIO: 'openFirstProductFromRoot',
     } satisfies NodeJS.ProcessEnv;
 
     const { options } = parseCli(
@@ -60,7 +60,7 @@ describe('parseCli', () => {
       proxyPassword: 'secret',
       connectEndpoint: 'ws://127.0.0.1:9222/devtools/browser/abc',
       connectPort: undefined,
-      scenario: 'openRoot',
+      scenario: 'openFirstProductFromRoot',
     });
   });
 
@@ -127,7 +127,7 @@ describe('parseCli', () => {
           '--connect-port',
           '9333',
           '--scenario',
-          'openRoot',
+          'openFirstProductFromRoot',
         ],
       }),
     } satisfies NodeJS.ProcessEnv;
@@ -137,7 +137,7 @@ describe('parseCli', () => {
     expect(options.keepBrowserOpen).toBe(false);
     expect(options.connectPort).toBe(9333);
     expect(options.connectEndpoint).toBeUndefined();
-    expect(options.scenario).toBe('openRoot');
+    expect(options.scenario).toBe('openFirstProductFromRoot');
   });
 
   it('recovers endpoint from npm_config_argv with equals syntax', () => {
