@@ -621,7 +621,7 @@ export class OzonParserService {
       }
 
       this.logger.log(`Connecting to existing browser at ${endpoint}`);
-      const browser = await puppeteer.connect({ browserWSEndpoint: endpoint });
+      const browser = await puppeteer.connect({ browserWSEndpoint: endpoint, defaultViewport: null });
       return { browser, ownsBrowser: false };
     }
 
