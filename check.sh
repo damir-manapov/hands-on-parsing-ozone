@@ -11,8 +11,8 @@ yarn lint
 echo "🧪 Running tests"
 yarn test
 
-echo "🏗️ Building project"
-yarn build
+echo "🧮 Type-checking project"
+yarn typecheck
 
 echo "🔐 Running yarn audit"
 yarn audit --groups dependencies
