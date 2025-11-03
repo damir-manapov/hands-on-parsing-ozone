@@ -15,6 +15,7 @@ describe('parseCli', () => {
       output: 'text',
       headless: true,
       verbose: false,
+      keepBrowserOpen: false,
     });
   });
 
@@ -42,7 +43,18 @@ describe('parseCli', () => {
       output: 'json',
       headless: false,
       timeoutMs: 20000,
+      keepBrowserOpen: true,
     });
+  });
+
+  it('respects --auto-close flag', () => {
+    const { options } = parseCli(
+      ['--no-headless', '--auto-close'],
+      {} as NodeJS.ProcessEnv,
+    );
+
+    expect(options.headless).toBe(false);
+    expect(options.keepBrowserOpen).toBe(false);
   });
 
   it('throws on unknown flags', () => {

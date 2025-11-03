@@ -36,8 +36,12 @@ yarn start -- --timeout 90000 --no-headless
 - `--json` / `--text` – select output format (text is default)
 - `--timeout <ms>` – navigation timeout (default 60000)
 - `--no-headless` / `--headless` – toggle headless Chromium
+- `--auto-close` – close the browser automatically even when headful
+- `--keep-browser-open` – force the browser to stay open until you press Enter
 - `-v, --verbose` – include stack traces on errors
 - `-h, --help` – show usage help
+
+When the browser is kept open, the CLI waits until you press Enter (or close the window) before shutting Chromium down. This makes it easier to solve antibot challenges manually.
 
 ### Environment variables
 

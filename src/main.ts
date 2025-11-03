@@ -41,6 +41,7 @@ async function bootstrap() {
       output: cli.output,
       headless: cli.headless,
       timeoutMs: cli.timeoutMs,
+      keepBrowserOpen: cli.keepBrowserOpen,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

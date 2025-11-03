@@ -9,6 +9,7 @@ export interface CliOptions {
   headless: boolean;
   timeoutMs?: number;
   verbose: boolean;
+  keepBrowserOpen: boolean;
 }
 
 export interface CliParseResult {
@@ -25,6 +26,8 @@ Options:
   --timeout <ms>         Override navigation timeout (default: 60000)
   --no-headless          Disable headless mode (useful for debugging)
   --headless             Explicitly enable headless mode
+  --auto-close           Close the browser automatically even in headful mode
+  --keep-browser-open    Keep the browser open after finishing (for headless debugging)
   -v, --verbose          Print stack traces on error
   -h, --help             Show this help message
 
@@ -58,12 +61,17 @@ export function parseCli(
   argv: string[],
   env: NodeJS.ProcessEnv = process.env,
 ): CliParseResult {
+  const headlessFromEnv = !['false', '0'].includes(
+    (env.HEADLESS ?? '').toLowerCase(),
+  );
+
   const options: CliOptions = {
     url: env.OZON_PRODUCT_URL ?? DEFAULT_PRODUCT_URL,
     output: env.OUTPUT === 'json' ? 'json' : 'text',
-    headless: !['false', '0'].includes((env.HEADLESS ?? '').toLowerCase()),
+    headless: headlessFromEnv,
     timeoutMs: parseNumber(env.OZON_TIMEOUT),
     verbose: false,
+    keepBrowserOpen: !headlessFromEnv,
   };
 
   let helpRequested = false;
@@ -109,9 +117,17 @@ export function parseCli(
       }
       case '--no-headless':
         options.headless = false;
+        options.keepBrowserOpen = true;
         break;
       case '--headless':
         options.headless = true;
+        options.keepBrowserOpen = false;
+        break;
+      case '--auto-close':
+        options.keepBrowserOpen = false;
+        break;
+      case '--keep-browser-open':
+        options.keepBrowserOpen = true;
         break;
       case '--verbose':
       case '-v':

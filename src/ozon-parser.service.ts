@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import type { Browser } from 'puppeteer';
 
 puppeteer.use(StealthPlugin());
 
@@ -34,6 +35,7 @@ export interface ParserOptions {
   url: string;
   headless?: boolean;
   timeoutMs?: number;
+  keepBrowserOpen?: boolean;
 }
 
 export interface RunOptions extends ParserOptions {
@@ -236,8 +238,60 @@ export class OzonParserService {
         url: options.url,
       });
     } finally {
-      await browser.close();
+      if (options.keepBrowserOpen && options.headless === false) {
+        await this.waitForHeadfulBrowser(browser);
+      }
+
+      if (browser.isConnected()) {
+        await browser.close();
+      }
     }
+  }
+
+  private async waitForHeadfulBrowser(browser: Browser): Promise<void> {
+    this.logger.log(
+      'Headful mode enabled. Interact with the browser window. Press Enter here (or close the browser) to continue.',
+    );
+
+    await new Promise<void>((resolve) => {
+      let settled = false;
+      let fallbackTimer: NodeJS.Timeout | undefined;
+
+      const finish = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+
+        if (fallbackTimer) {
+          clearTimeout(fallbackTimer);
+        }
+
+        if (process.stdin.isTTY) {
+          process.stdin.pause();
+        }
+
+        resolve();
+      };
+
+      browser.once('disconnected', () => finish());
+
+      if (process.stdin.isTTY) {
+        process.stdin.resume();
+        process.stdin.setEncoding('utf8');
+        process.stdin.once('data', () => finish());
+      } else {
+        fallbackTimer = setTimeout(() => {
+          if (browser.isConnected()) {
+            this.logger.warn(
+              'Non-interactive terminal detected. Auto-closing browser after 2 minutes.',
+            );
+          }
+          finish();
+        }, 120_000);
+        fallbackTimer.unref?.();
+      }
+    });
   }
 
   private normalizeProductInfo({

@@ -8,11 +8,11 @@ yarn format
 echo "🧹 Running lint"
 yarn lint
 
-echo "🧪 Running tests"
-yarn test
-
 echo "🧮 Type-checking project"
 yarn typecheck
+
+echo "🧪 Running tests"
+yarn test
 
 echo "🔐 Running yarn audit"
 yarn audit --groups dependencies
