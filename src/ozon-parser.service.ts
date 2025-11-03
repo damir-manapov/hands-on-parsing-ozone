@@ -482,7 +482,8 @@ export class OzonParserService {
           a.style.display = 'none';
           document.body.appendChild(a);
           a.click();
-        }, options.url); // works
+        // }, options.url); // works https://www.ozon.ru/?__rr=1
+        }, 'https://www.ozon.ru/'); // works
         // await client.send('Page.navigate', { url: options.url });
       } finally {
         await client.detach().catch(() => undefined);
