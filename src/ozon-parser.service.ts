@@ -242,7 +242,7 @@ export class OzonParserService {
         await this.waitForHeadfulBrowser(browser);
       }
 
-      if (browser.isConnected()) {
+      if (browser.connected) {
         await browser.close();
       }
     }
@@ -282,7 +282,7 @@ export class OzonParserService {
         process.stdin.once('data', () => finish());
       } else {
         fallbackTimer = setTimeout(() => {
-          if (browser.isConnected()) {
+          if (browser.connected) {
             this.logger.warn(
               'Non-interactive terminal detected. Auto-closing browser after 2 minutes.',
             );
