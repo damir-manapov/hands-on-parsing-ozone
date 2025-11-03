@@ -1,10 +1,47 @@
 import { request as httpRequest } from 'node:http';
 import puppeteer from 'puppeteer-extra';
-import type { Browser } from 'puppeteer';
+import type { Browser, Page, Target } from 'puppeteer';
 import type { ParserOptions } from '../ozon-parser.service';
 import { Logger } from '@nestjs/common';
 
 const logger = new Logger('BrowserUtils');
+
+export function wireConsole(page: Page): void {
+  page.on('console', (msg) => {
+    try {
+      const text = msg.text();
+      const type = msg.type();
+
+      console.log(`[Browser ${type}] ${text}`);
+    } catch {
+      // ignore
+    }
+  });
+}
+
+export async function wireBrowserConsole(browser: Browser): Promise<void> {
+  try {
+    const pages = await browser.pages();
+    for (const p of pages) {
+      wireConsole(p);
+    }
+  } catch {
+    // ignore
+  }
+
+  const handler = (t: Target): void => {
+    void (async () => {
+      try {
+        if (String(t.type()) !== 'page') return;
+        const p = await t.page();
+        if (p) wireConsole(p);
+      } catch {
+        // ignore
+      }
+    })();
+  };
+  browser.on('targetcreated', handler);
+}
 
 export async function acquireBrowser(
   options: ParserOptions,
