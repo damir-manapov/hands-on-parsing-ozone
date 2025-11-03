@@ -54,7 +54,7 @@ describe('parseCli', () => {
       output: 'json',
       headless: false,
       timeoutMs: 20000,
-      keepBrowserOpen: true,
+      keepBrowserOpen: false,
       proxy: 'socks5://127.0.0.1:9050',
       proxyUsername: 'alice',
       proxyPassword: 'secret',
@@ -91,6 +91,7 @@ describe('parseCli', () => {
     expect(options.connectPort).toBe(9333);
     expect(options.connectEndpoint).toBeUndefined();
     expect(options.scenario).toBe('openProduct');
+    expect(options.keepBrowserOpen).toBe(false);
   });
 
   it('sets scenario via flag', () => {
@@ -133,7 +134,7 @@ describe('parseCli', () => {
 
     const { options } = parseCli([], env);
     expect(options.headless).toBe(false);
-    expect(options.keepBrowserOpen).toBe(true);
+    expect(options.keepBrowserOpen).toBe(false);
     expect(options.connectPort).toBe(9333);
     expect(options.connectEndpoint).toBeUndefined();
     expect(options.scenario).toBe('openRoot');

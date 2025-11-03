@@ -46,7 +46,6 @@ async function bootstrap() {
     proxyPassword: cli.proxyPassword ? '***' : null,
     connectEndpoint: cli.connectEndpoint ?? null,
     connectPort: cli.connectPort ?? null,
-    checkByGoogle: cli.scenario === 'openGoogle',
     scenario: cli.scenario,
   };
 

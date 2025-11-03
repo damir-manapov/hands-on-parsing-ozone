@@ -416,6 +416,14 @@ export function parseCli(
     }
   }
 
+  if (
+    options.scenario !== 'parseProduct' &&
+    !args.includes('--keep-browser-open') &&
+    !args.includes('--auto-close')
+  ) {
+    options.keepBrowserOpen = false;
+  }
+
   return { options, helpRequested };
 }
 

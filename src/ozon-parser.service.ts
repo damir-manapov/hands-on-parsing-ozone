@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { request as httpRequest } from 'node:http';
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import type { Browser } from 'puppeteer';
+import type { Browser, Page } from 'puppeteer';
 
 puppeteer.use(StealthPlugin());
 
@@ -103,7 +103,7 @@ export class OzonParserService {
         return info;
       }
       case 'openProduct': {
-        const info = await this.openSimplePage(options.url, options);
+        const info = await this.openProductPage(options);
         if (options.output === 'json') {
           console.log(
             JSON.stringify(
@@ -141,29 +141,30 @@ export class OzonParserService {
 
     try {
       const page = await browser.newPage();
+      const typedPage = page as unknown as Page;
 
       await page.setExtraHTTPHeaders({
         'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
       });
 
       if (options.proxyUsername || options.proxyPassword) {
-        await page.authenticate({
+        await typedPage.authenticate({
           username: options.proxyUsername ?? '',
           password: options.proxyPassword ?? '',
         });
       }
 
       const timeout = options.timeoutMs ?? 60_000;
-      page.setDefaultNavigationTimeout(timeout);
-      page.setDefaultTimeout(timeout);
+      typedPage.setDefaultNavigationTimeout(timeout);
+      typedPage.setDefaultTimeout(timeout);
 
-      await page.goto(options.url, {
+      await typedPage.goto(options.url, {
         waitUntil: 'networkidle2',
         timeout,
       });
 
       const evaluatePage = async (): Promise<EvaluationResult> =>
-        page.evaluate((): EvaluationResult => {
+        typedPage.evaluate((): EvaluationResult => {
           const toArray = <T>(value: unknown): T[] => {
             if (Array.isArray(value)) {
               return value.filter(
@@ -317,7 +318,7 @@ export class OzonParserService {
         await this.waitForUserSignal();
 
         try {
-          await page.waitForNavigation({
+          await typedPage.waitForNavigation({
             waitUntil: 'domcontentloaded',
             timeout,
           });
@@ -359,29 +360,25 @@ export class OzonParserService {
 
   private async openSimplePage(
     targetUrl: string,
-    options: ParserOptions,
-  ): Promise<ProductInfo> {
+    options: RunOptions,
+  ): Promise<{ info: ProductInfo; browser: Browser; ownsBrowser: boolean }> {
     const { browser, ownsBrowser } = await this.acquireBrowser(options);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1_000));
       const page = await browser.newPage();
-
-      if (options.proxyUsername || options.proxyPassword) {
-        await page.authenticate({
-          username: options.proxyUsername ?? '',
-          password: options.proxyPassword ?? '',
-        });
-      }
+      const typedPage = page as unknown as Page;
 
       const timeout = options.timeoutMs ?? 60_000;
-      page.setDefaultNavigationTimeout(timeout);
-      page.setDefaultTimeout(timeout);
+      typedPage.setDefaultNavigationTimeout(timeout);
+      typedPage.setDefaultTimeout(timeout);
 
-      await page.goto('about:blank');
+      await typedPage.goto('about:blank', {
+        waitUntil: 'domcontentloaded',
+        timeout,
+      });
       await new Promise((resolve) => setTimeout(resolve, 1_000));
 
-      await page.evaluate((url) => {
+      await typedPage.evaluate((url) => {
         const anchor = document.createElement('a');
         anchor.href = url;
         anchor.target = '_blank';
@@ -392,21 +389,21 @@ export class OzonParserService {
       }, targetUrl);
 
       try {
-        await page.waitForNavigation({
+        await typedPage.waitForNavigation({
           waitUntil: 'domcontentloaded',
           timeout,
         });
       } catch (error) {
         this.logger.warn(
-          `Timed out waiting for page to load via anchor (${targetUrl}): ${
+          `Timed out waiting for anchor navigation (${targetUrl}): ${
             error instanceof Error ? error.message : String(error)
           }`,
         );
       }
 
-      const title = await page.title();
+      const title = await typedPage.title();
 
-      return {
+      const info: ProductInfo = {
         title: title || targetUrl,
         url: targetUrl,
         sku: null,
@@ -424,32 +421,35 @@ export class OzonParserService {
         images: [],
         rawPriceText: null,
       } satisfies ProductInfo;
-    } finally {
-      if (
-        ownsBrowser &&
-        options.keepBrowserOpen &&
-        options.headless === false
-      ) {
-        await this.waitForHeadfulBrowser(browser);
-      }
 
-      if (ownsBrowser) {
-        if (browser.connected) {
-          await browser.close();
-        }
+      return { info, browser, ownsBrowser };
+    } catch (error) {
+      if (ownsBrowser && browser.connected) {
+        await browser.close().catch(() => undefined);
       } else if (browser.connected) {
         void browser.disconnect();
       }
+      throw error;
     }
   }
 
-  private async openProductPage(options: ParserOptions): Promise<ProductInfo> {
-    return this.openSimplePage(options.url, options);
+  private async openProductPage(options: RunOptions): Promise<ProductInfo> {
+    const { info, browser, ownsBrowser } = await this.openSimplePage(
+      options.url,
+      options,
+    );
+    await this.finishSimpleScenario({ browser, ownsBrowser, options });
+    return info;
   }
 
-  private async openRootPage(options: ParserOptions): Promise<ProductInfo> {
+  private async openRootPage(options: RunOptions): Promise<ProductInfo> {
     const origin = new URL(options.url).origin;
-    return this.openSimplePage(origin, options);
+    const { info, browser, ownsBrowser } = await this.openSimplePage(
+      origin,
+      options,
+    );
+    await this.finishSimpleScenario({ browser, ownsBrowser, options });
+    return info;
   }
 
   private async performGoogleCheck(
@@ -459,30 +459,31 @@ export class OzonParserService {
 
     try {
       const page = await browser.newPage();
+      const typedPage = page as unknown as Page;
 
       await page.setExtraHTTPHeaders({
         'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
       });
 
       if (options.proxyUsername || options.proxyPassword) {
-        await page.authenticate({
+        await typedPage.authenticate({
           username: options.proxyUsername ?? '',
           password: options.proxyPassword ?? '',
         });
       }
 
       const timeout = options.timeoutMs ?? 30_000;
-      page.setDefaultNavigationTimeout(timeout);
-      page.setDefaultTimeout(timeout);
+      typedPage.setDefaultNavigationTimeout(timeout);
+      typedPage.setDefaultTimeout(timeout);
 
       const targetUrl = 'https://www.google.com/';
-      await page.goto(targetUrl, {
+      await typedPage.goto(targetUrl, {
         waitUntil: 'domcontentloaded',
         timeout,
       });
 
       try {
-        await page.waitForSelector('input[name="q"]', { timeout: 10_000 });
+        await typedPage.waitForSelector('input[name="q"]', { timeout: 10_000 });
       } catch (error) {
         this.logger.warn(
           `Google check loaded but search box not found: ${
@@ -491,7 +492,7 @@ export class OzonParserService {
         );
       }
 
-      const title = (await page.title()) || 'Google';
+      const title = (await typedPage.title()) || 'Google';
 
       return {
         title,
@@ -943,5 +944,38 @@ export class OzonParserService {
     }
 
     return null;
+  }
+
+  private async finishSimpleScenario({
+    browser,
+    ownsBrowser,
+    options,
+  }: {
+    browser: Browser;
+    ownsBrowser: boolean;
+    options: RunOptions;
+  }): Promise<void> {
+    if (
+      ownsBrowser &&
+      options.headless === false &&
+      options.keepBrowserOpen &&
+      options.scenario === 'parseProduct'
+    ) {
+      await this.waitForHeadfulBrowser(browser);
+    }
+
+    if (!browser.connected) {
+      return;
+    }
+
+    if (options.scenario !== 'parseProduct') {
+      return;
+    }
+
+    if (ownsBrowser) {
+      await browser.close();
+    } else {
+      void browser.disconnect();
+    }
   }
 }
