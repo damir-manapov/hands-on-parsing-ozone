@@ -59,11 +59,12 @@ Challenges are surfaced with their token so you can match them against Ozon’s 
 ## Development scripts
 
 ```bash
+yarn typecheck  # TypeScript compile without emitting files
 yarn build   # TypeScript build
 yarn lint    # ESLint + Prettier integration
 yarn test    # Vitest unit tests
 
-./check.sh   # Format, lint, test, build, audit, and check outdated deps
+./check.sh   # Format, lint, test, typecheck, audit, and check outdated deps
 ```
 
 ## Project structure
