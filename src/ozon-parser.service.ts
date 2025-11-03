@@ -42,13 +42,11 @@ export interface ParserOptions {
   proxyPassword?: string;
   connectEndpoint?: string;
   connectPort?: number;
-  checkByGoogle?: boolean;
-  openProductPageOnly?: boolean;
-  openRootPage?: boolean;
 }
 
 export interface RunOptions extends ParserOptions {
   output: 'text' | 'json';
+  scenario: import('./cli-options').CliScenario;
 }
 
 interface EvaluationResult {
@@ -65,79 +63,77 @@ export class OzonParserService {
   private readonly logger = new Logger(OzonParserService.name);
 
   async run(options: RunOptions): Promise<ProductInfo> {
-    if (options.checkByGoogle) {
-      const info = await this.performGoogleCheck(options);
-      if (options.output === 'json') {
-        console.log(
-          JSON.stringify(
-            {
-              success: true,
-              title: info.title,
-              url: info.url,
-            },
-            null,
-            2,
-          ),
-        );
-      } else {
-        console.log(`✅ Google reachable (${info.title})`);
+    switch (options.scenario) {
+      case 'openGoogle': {
+        const info = await this.performGoogleCheck(options);
+        if (options.output === 'json') {
+          console.log(
+            JSON.stringify(
+              {
+                success: true,
+                title: info.title,
+                url: info.url,
+              },
+              null,
+              2,
+            ),
+          );
+        } else {
+          console.log(`✅ Google reachable (${info.title})`);
+        }
+        return info;
       }
-
-      return info;
-    }
-
-    if (options.openRootPage) {
-      const info = await this.openRootPage(options);
-
-      if (options.output === 'json') {
-        console.log(
-          JSON.stringify(
-            {
-              success: true,
-              title: info.title,
-              url: info.url,
-            },
-            null,
-            2,
-          ),
-        );
-      } else {
-        console.log(`✅ Opened site root (${info.title})`);
+      case 'openRoot': {
+        const info = await this.openRootPage(options);
+        if (options.output === 'json') {
+          console.log(
+            JSON.stringify(
+              {
+                success: true,
+                title: info.title,
+                url: info.url,
+              },
+              null,
+              2,
+            ),
+          );
+        } else {
+          console.log(`✅ Opened site root (${info.title})`);
+        }
+        return info;
       }
-
-      return info;
-    }
-
-    if (options.openProductPageOnly) {
-      const info = await this.openSimplePage(options.url, options);
-      if (options.output === 'json') {
-        console.log(
-          JSON.stringify(
-            {
-              success: true,
-              title: info.title,
-              url: info.url,
-            },
-            null,
-            2,
-          ),
-        );
-      } else {
-        console.log(`✅ Opened product page (${info.title})`);
+      case 'openProduct': {
+        const info = await this.openSimplePage(options.url, options);
+        if (options.output === 'json') {
+          console.log(
+            JSON.stringify(
+              {
+                success: true,
+                title: info.title,
+                url: info.url,
+              },
+              null,
+              2,
+            ),
+          );
+        } else {
+          console.log(`✅ Opened product page (${info.title})`);
+        }
+        return info;
       }
+      case 'parseProduct':
+      default: {
+        const info = await this.parseProduct(options);
 
-      return info;
+        if (options.output === 'json') {
+          console.log(JSON.stringify(info, null, 2));
+        } else {
+          this.printHumanReadable(info);
+        }
+
+        return info;
+      }
     }
-
-    const info = await this.parseProduct(options);
-
-    if (options.output === 'json') {
-      console.log(JSON.stringify(info, null, 2));
-    } else {
-      this.printHumanReadable(info);
-    }
-
-    return info;
   }
 
   async parseProduct(options: ParserOptions): Promise<ProductInfo> {

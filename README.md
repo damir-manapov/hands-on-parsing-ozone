@@ -36,6 +36,7 @@ yarn start -- --timeout 90000 --no-headless
 - `--json` / `--text` – select output format (text is default)
 - `--timeout <ms>` – navigation timeout (default 60000)
 - `--no-headless` / `--headless` – toggle headless Chromium
+- `--scenario <name>` – Execution mode: `parseProduct` (default), `openGoogle`, `openProduct`, `openRoot`
 - `--auto-close` – close the browser automatically even when headful
 - `--keep-browser-open` – force the browser to stay open until you press Enter
 - `--proxy <url>` – route traffic through `http`, `https`, or `socks5` proxy
@@ -63,6 +64,7 @@ When the browser is kept open, the CLI waits until you press Enter (or close the
 - `PARSER_OPEN_ROOT_PAGE` – set to `true` to open the site root without parsing
 - `PARSER_CONNECT_ENDPOINT` – remote browser WebSocket endpoint
 - `PARSER_CONNECT_PORT` – remote debugging port (used to fetch the endpoint)
+- `PARSER_SCENARIO` – Default execution mode (same values as --scenario)
 
 ### Proxy usage example
 
@@ -99,13 +101,13 @@ yarn list:profiles [--token <apiToken>]
 
 Each folder (id and name) and its profiles (id and name) will be printed. Defaults can be supplied via `ANTIDETECT_SERVER` and `ANTIDETECT_TOKEN`; omit `--token` if your service doesn’t require authentication. If you omit `--server`, the script targets `https://v1.empr.cloud` by default.
 
-Need a lightweight connectivity check before parsing? Use:
+Need a lightweight connectivity check before parsing? Use the scenario flag:
 
 ```bash
-yarn start -- --open-root-page --connect-port <port>
+yarn start -- --scenario openRoot --connect-port <port>
 ```
 
-This launches the antidetect profile, opens the marketplace root URL, and then exits without touching the product page.
+This launches the antidetect profile, opens the marketplace root URL in your antidetect browser, and then exits without touching the product page. Other scenarios include `openProduct` (just open the product card) and `openGoogle` (connectivity smoke test).
 
 To inspect profiles that are already running:
 

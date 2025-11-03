@@ -34,7 +34,7 @@ async function bootstrap() {
 
   const logger = new Logger('CLI');
 
-  const displayedOptions = {
+  const displayedOptions: Record<string, unknown> = {
     url: cli.url,
     output: cli.output,
     headless: cli.headless,
@@ -46,9 +46,8 @@ async function bootstrap() {
     proxyPassword: cli.proxyPassword ? '***' : null,
     connectEndpoint: cli.connectEndpoint ?? null,
     connectPort: cli.connectPort ?? null,
-    checkByGoogle: cli.checkByGoogle,
-    openProductPageOnly: cli.openProductPageOnly,
-    openRootPage: cli.openRootPage,
+    checkByGoogle: cli.scenario === 'openGoogle',
+    scenario: cli.scenario,
   };
 
   console.log('Parsed CLI options:', JSON.stringify(displayedOptions, null, 2));
@@ -66,9 +65,7 @@ async function bootstrap() {
       proxyPassword: cli.proxyPassword,
       connectEndpoint: cli.connectEndpoint,
       connectPort: cli.connectPort,
-      checkByGoogle: cli.checkByGoogle,
-      openProductPageOnly: cli.openProductPageOnly,
-      openRootPage: cli.openRootPage,
+      scenario: cli.scenario,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

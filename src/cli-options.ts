@@ -2,6 +2,11 @@ export const DEFAULT_PRODUCT_URL =
   'https://www.ozon.ru/product/kedy-adidas-sportswear-grand-court-base-2-0-1066650955/';
 
 export type OutputFormat = 'text' | 'json';
+export type CliScenario =
+  | 'parseProduct'
+  | 'openGoogle'
+  | 'openProduct'
+  | 'openRoot';
 
 export interface CliOptions {
   url: string;
@@ -15,9 +20,7 @@ export interface CliOptions {
   proxyPassword?: string;
   connectEndpoint?: string;
   connectPort?: number;
-  checkByGoogle: boolean;
-  openProductPageOnly: boolean;
-  openRootPage: boolean;
+  scenario: CliScenario;
 }
 
 export interface CliParseResult {
@@ -41,9 +44,7 @@ Options:
   --proxy-password <v>   Password for proxy authentication
   --connect-endpoint <ws>  Connect to an existing browser via WebSocket endpoint
   --connect-port <port>    Resolve WebSocket endpoint from http://127.0.0.1:<port>/json/version
-  --check-google           Skip product parsing and open Google to verify connectivity
-  --open-product-page-only  Open the product page but skip parsing/printing results
-  --open-root-page         Open the site root (derived from product URL) without parsing
+  --scenario <name>        Execution mode: parseProduct | openGoogle | openProduct | openRoot
   -v, --verbose          Print stack traces on error
   -h, --help             Show this help message
 
@@ -57,9 +58,7 @@ Environment variables:
   PARSER_PROXY_PASSWORD  Proxy basic auth password
   PARSER_CONNECT_ENDPOINT  Browser WebSocket endpoint
   PARSER_CONNECT_PORT      Browser remote debugging port
-  PARSER_CHECK_GOOGLE      Set to 'true' to open Google instead of parsing a product
-  PARSER_OPEN_PRODUCT_ONLY  Set to 'true' to open the product page without parsing
-  PARSER_OPEN_ROOT_PAGE     Set to 'true' to open the site root without parsing
+  PARSER_SCENARIO          Default execution mode (same values as --scenario)
 `;
 
 export function formatHelpMessage(): string {
@@ -89,6 +88,10 @@ export function parseCli(
     (env.PARSER_HEADLESS ?? '').toLowerCase(),
   );
 
+  const scenarioFromEnv = validateScenario(
+    env.PARSER_SCENARIO ?? 'parseProduct',
+  );
+
   const options: CliOptions = {
     url: env.PARSER_PRODUCT_URL ?? DEFAULT_PRODUCT_URL,
     output: env.PARSER_OUTPUT === 'json' ? 'json' : 'text',
@@ -101,15 +104,7 @@ export function parseCli(
     proxyPassword: env.PARSER_PROXY_PASSWORD,
     connectEndpoint: env.PARSER_CONNECT_ENDPOINT,
     connectPort: parseNumber(env.PARSER_CONNECT_PORT),
-    checkByGoogle:
-      (env.PARSER_CHECK_GOOGLE ?? '').toLowerCase() === 'true' ||
-      env.PARSER_CHECK_GOOGLE === '1',
-    openProductPageOnly:
-      (env.PARSER_OPEN_PRODUCT_ONLY ?? '').toLowerCase() === 'true' ||
-      env.PARSER_OPEN_PRODUCT_ONLY === '1',
-    openRootPage:
-      (env.PARSER_OPEN_ROOT_PAGE ?? '').toLowerCase() === 'true' ||
-      env.PARSER_OPEN_ROOT_PAGE === '1',
+    scenario: scenarioFromEnv,
   };
 
   let helpRequested = false;
@@ -205,14 +200,9 @@ export function parseCli(
       case '-v':
         options.verbose = true;
         break;
-      case '--check-google':
-        options.checkByGoogle = true;
-        break;
-      case '--open-product-page-only':
-        options.openProductPageOnly = true;
-        break;
-      case '--open-root-page':
-        options.openRootPage = true;
+      case '--scenario':
+        options.scenario = validateScenario(ensureValue(index + 1, arg));
+        index += 1;
         break;
       default:
         if (arg.startsWith('-')) {
@@ -256,19 +246,16 @@ export function parseCli(
           )
         : [];
 
-      if (!options.checkByGoogle && original.includes('--check-google')) {
-        options.checkByGoogle = true;
+      if (original.includes('--check-google')) {
+        options.scenario = 'openGoogle';
       }
 
-      if (
-        !options.openProductPageOnly &&
-        original.includes('--open-product-page-only')
-      ) {
-        options.openProductPageOnly = true;
+      if (original.includes('--open-product-page-only')) {
+        options.scenario = 'openProduct';
       }
 
-      if (!options.openRootPage && original.includes('--open-root-page')) {
-        options.openRootPage = true;
+      if (original.includes('--open-root-page')) {
+        options.scenario = 'openRoot';
       }
 
       if (
@@ -315,6 +302,22 @@ export function parseCli(
 
         return undefined;
       };
+
+      if (
+        original.includes('--scenario') ||
+        original.some((entry) => entry.startsWith('--scenario='))
+      ) {
+        for (let index = 0; index < original.length; index += 1) {
+          const entry = original[index];
+          if (!entry.startsWith('--scenario')) continue;
+          const inline = entry.split('=')[1];
+          const value = inline ?? getValue('--scenario', index);
+          if (value) {
+            options.scenario = validateScenario(value);
+            break;
+          }
+        }
+      }
 
       for (let index = 0; index < original.length; index += 1) {
         const entry = original[index];
@@ -397,56 +400,6 @@ export function parseCli(
               }
             }
             break;
-          case entry === '--check-google':
-          case entry.startsWith('--check-google='):
-            if (!options.checkByGoogle) {
-              options.checkByGoogle = true;
-            }
-            break;
-          case entry === '--open-product-page-only':
-          case entry.startsWith('--open-product-page-only='):
-            if (!options.openProductPageOnly) {
-              options.openProductPageOnly = true;
-            }
-            break;
-          case entry === '--open-root-page':
-          case entry.startsWith('--open-root-page='):
-            if (!options.openRootPage) {
-              options.openRootPage = true;
-            }
-            break;
-          case entry === '--verbose':
-          case entry.startsWith('--verbose='):
-            if (!options.verbose) {
-              options.verbose = true;
-            }
-            break;
-          case entry === '--no-headless':
-          case entry.startsWith('--no-headless='):
-            if (!argv.includes('--no-headless')) {
-              options.headless = false;
-              options.keepBrowserOpen = true;
-            }
-            break;
-          case entry === '--headless':
-          case entry.startsWith('--headless='):
-            if (!argv.includes('--headless')) {
-              options.headless = true;
-              options.keepBrowserOpen = false;
-            }
-            break;
-          case entry === '--auto-close':
-          case entry.startsWith('--auto-close='):
-            if (!argv.includes('--auto-close')) {
-              options.keepBrowserOpen = false;
-            }
-            break;
-          case entry === '--keep-browser-open':
-          case entry.startsWith('--keep-browser-open='):
-            if (!argv.includes('--keep-browser-open')) {
-              options.keepBrowserOpen = true;
-            }
-            break;
         }
       }
     } catch {
@@ -455,4 +408,18 @@ export function parseCli(
   }
 
   return { options, helpRequested };
+}
+
+function validateScenario(value: string): CliScenario {
+  switch (value) {
+    case 'parseProduct':
+    case 'openGoogle':
+    case 'openProduct':
+    case 'openRoot':
+      return value;
+    default:
+      throw new Error(
+        `Unknown scenario: ${value}. Expected parseProduct | openGoogle | openProduct | openRoot`,
+      );
+  }
 }
