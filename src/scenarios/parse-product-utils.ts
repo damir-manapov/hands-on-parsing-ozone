@@ -7,6 +7,7 @@ export interface EvaluationResult {
   priceText: string | null;
   product: Record<string, unknown> | null;
   breadcrumbs: string[];
+  rawJsonLd?: unknown[];
 }
 
 export function waitForUserSignal(): Promise<void> {

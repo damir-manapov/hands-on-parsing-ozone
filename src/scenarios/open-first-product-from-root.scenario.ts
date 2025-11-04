@@ -56,7 +56,9 @@ export async function openFirstProductFromRoot(
       const selector = 'a[href*="/product/"]';
       console.log(`Searching for selector: ${selector}`);
 
-      const link = document.querySelector<HTMLAnchorElement>('a[href*="/product/"]');
+      const link = document.querySelector<HTMLAnchorElement>(
+        'a[href*="/product/"]',
+      );
       const result = link?.href ?? null;
       console.log(`Selected link: ${result ?? 'null'}`);
       return result;

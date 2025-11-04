@@ -1,22 +1,30 @@
-import type { Page } from 'puppeteer';
+import { URL } from 'node:url';
 import type { ParserOptions, ProductInfo } from '../ozon-parser.service';
-import { acquireBrowser, waitForHeadfulBrowser } from './browser-utils';
+import {
+  acquireBrowser,
+  wireBrowserConsole,
+  waitForHeadfulBrowser,
+} from './browser-utils';
 import { navigateWithAnchor } from './scenario-utils';
 import {
   normalizeProductInfo,
   waitForUserSignal,
   type EvaluationResult,
 } from './parse-product-utils';
+import type { Page } from 'puppeteer';
 import { Logger } from '@nestjs/common';
 
-const logger = new Logger('ParseProductScenario');
+const logger = new Logger('ParseFirstProductFromRootScenario');
 
-export async function parseProduct(
+export async function parseFirstProductFromRoot(
   options: ParserOptions,
 ): Promise<ProductInfo> {
   const { browser, ownsBrowser } = await acquireBrowser(options);
 
   try {
+    // Wire console for all existing and future pages
+    await wireBrowserConsole(browser);
+
     const page = await browser.newPage();
     const typedPage = page as unknown as Page;
 
@@ -35,10 +43,46 @@ export async function parseProduct(
     typedPage.setDefaultNavigationTimeout(timeout);
     typedPage.setDefaultTimeout(timeout);
 
-    await navigateWithAnchor(typedPage, options.url, timeout);
+    const rootUrl = new URL(options.url).origin;
+    console.log(`rootUrl: ${rootUrl}`);
 
+    // Navigate to root page - returns the new page
+    const rootPage = await navigateWithAnchor(typedPage, rootUrl, timeout);
+
+    if (!rootPage) {
+      throw new Error(`Failed to navigate to root page: ${rootUrl}`);
+    }
+
+    // Additional wait for page to be fully interactive
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+
+    // Find first product link
+    const productUrl = await rootPage.evaluate(() => {
+      const link = document.querySelector<HTMLAnchorElement>(
+        'a[href*="/product/"]',
+      );
+      return link?.href ?? null;
+    });
+
+    if (!productUrl) {
+      const currentUrl = rootPage.url();
+      throw new Error(
+        `Could not find a product link on the root page (${currentUrl}).`,
+      );
+    }
+
+    console.log(`Found product URL: ${productUrl}`);
+
+    // Navigate to product page - returns the new page
+    const productPage = await navigateWithAnchor(rootPage, productUrl, timeout);
+
+    if (!productPage) {
+      throw new Error(`Failed to navigate to product page: ${productUrl}`);
+    }
+
+    // Parse the product page (same logic as parseProduct)
     const evaluatePage = async (): Promise<EvaluationResult> =>
-      typedPage.evaluate((): EvaluationResult => {
+      productPage.evaluate((): EvaluationResult => {
         const toArray = <T>(value: unknown): T[] => {
           if (Array.isArray(value)) {
             return value.filter(
@@ -202,7 +246,7 @@ export async function parseProduct(
       await waitForUserSignal();
 
       try {
-        await typedPage.waitForNavigation({
+        await productPage.waitForNavigation({
           waitUntil: 'domcontentloaded',
           timeout,
         });
@@ -221,7 +265,7 @@ export async function parseProduct(
 
     return normalizeProductInfo({
       evaluation,
-      url: options.url,
+      url: productUrl,
     });
   } finally {
     if (ownsBrowser && options.keepBrowserOpen && options.headless === false) {

@@ -6,6 +6,7 @@ import { openGoogle } from './scenarios/open-google.scenario';
 import { openProduct } from './scenarios/open-product.scenario';
 import { openRoot } from './scenarios/open-root.scenario';
 import { openFirstProductFromRoot } from './scenarios/open-first-product-from-root.scenario';
+import { parseFirstProductFromRoot } from './scenarios/parse-first-product-from-root.scenario';
 
 puppeteer.use(StealthPlugin());
 
@@ -132,6 +133,17 @@ export class OzonParserService {
         } else {
           console.log(`✅ Opened first product (${info.title})`);
         }
+        return info;
+      }
+      case 'parseFirstProductFromRoot': {
+        const info = await parseFirstProductFromRoot(options);
+
+        if (options.output === 'json') {
+          console.log(JSON.stringify(info, null, 2));
+        } else {
+          this.printHumanReadable(info);
+        }
+
         return info;
       }
       case 'parseProduct':
